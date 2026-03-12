@@ -49,7 +49,26 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 # Configuration
 # ======================================================================
 
-TRAINING_DATA_PATH = os.path.join(FEATURE_CACHE_DIR, 'training_data.parquet')
+# Tier definitions (must match build_training_data.py)
+TIERS = {
+    '10_30':  (10, 30),
+    '31_60':  (31, 60),
+    '61_90':  (61, 90),
+    '91_120': (91, 120),
+    '121_200': (121, 200),
+    '201_300': (201, 300),
+}
+
+# Default tier
+ACTIVE_TIER = '10_30'
+
+def get_training_data_path(tier=None):
+    if tier is None:
+        tier = ACTIVE_TIER
+    dmin, dmax = TIERS[tier]
+    return os.path.join(FEATURE_CACHE_DIR, f'training_data_{dmin}_{dmax}.parquet')
+
+TRAINING_DATA_PATH = get_training_data_path()
 
 # V2 Feature set (~50 features: kept V1 features with importance + new V2 features)
 FEATURE_COLS = [
@@ -63,7 +82,7 @@ FEATURE_COLS = [
     # V2 new pattern features
     'pat_consistency_std', 'pat_concurrent_count',
     'pat_neighbor_avg_wr', 'pat_sharpness', 'pat_pre_slope', 'pat_post_cliff',
-    'pat_hit_last_year',
+    'pat_hit_last_year', 'pat_daysOut',
     # Group 2: Technical (V1 kept: 5)
     'ta_trend_long', 'ta_price_vs_sma200', 'ta_sma50_vs_sma200',
     'ta_trend_direction_match', 'ta_rvol_20',
@@ -258,10 +277,11 @@ def _max_drawdown(returns):
 def load_training_data():
     """Load and prepare training data with minimal memory footprint."""
     import pyarrow.parquet as pq
-    log.info(f"Loading training data from {TRAINING_DATA_PATH}")
+    data_path = get_training_data_path(ACTIVE_TIER)
+    log.info(f"Loading training data from {data_path} (tier: {ACTIVE_TIER})")
 
     # Peek at column names to find available features
-    schema = pq.read_schema(TRAINING_DATA_PATH)
+    schema = pq.read_schema(data_path)
     all_cols = [f.name for f in schema]
     available = [c for c in FEATURE_COLS if c in all_cols]
     missing = [c for c in FEATURE_COLS if c not in all_cols]
@@ -270,9 +290,18 @@ def load_training_data():
 
     # Read ONLY needed columns from parquet
     keep_cols = available + ['date', 'actual_return', 'hit_target']
+    # Also load daysOut if pat_daysOut missing (can derive it)
+    if 'pat_daysOut' not in all_cols and 'daysOut' in all_cols:
+        keep_cols.append('daysOut')
     keep_cols = [c for c in keep_cols if c in all_cols]
     keep_cols = list(dict.fromkeys(keep_cols))  # deduplicate preserving order
-    df = pd.read_parquet(TRAINING_DATA_PATH, columns=keep_cols)
+    df = pd.read_parquet(data_path, columns=keep_cols)
+    # Derive pat_daysOut from daysOut if needed
+    if 'pat_daysOut' not in df.columns and 'daysOut' in df.columns:
+        df['pat_daysOut'] = df['daysOut'].astype(np.float32)
+        if 'pat_daysOut' not in available:
+            available.append('pat_daysOut')
+        missing = [m for m in missing if m != 'pat_daysOut']
     log.info(f"Loaded {len(df):,} samples, {len(df.columns)} columns")
 
     # Add year column
@@ -925,19 +954,20 @@ def train_final_model(df, feature_cols, params):
 
     log.info("Training final LightGBM...")
     lgb_model = train_lgb(X_train, y_train, X_val, y_val, feature_cols, params)
-    lgb_path = os.path.join(MODEL_DIR, f'v2_lgb_{date_str}.txt')
+    tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+    lgb_path = os.path.join(MODEL_DIR, f'v2_lgb{tier_tag}_{date_str}.txt')
     lgb_model.save_model(lgb_path)
     log.info(f"LGB saved: {lgb_path} (best iter: {lgb_model.best_iteration})")
 
     log.info("Training final XGBoost...")
     xgb_model = train_xgb(X_train, y_train, X_val, y_val, feature_cols, params)
-    xgb_path = os.path.join(MODEL_DIR, f'v2_xgb_{date_str}.json')
+    xgb_path = os.path.join(MODEL_DIR, f'v2_xgb{tier_tag}_{date_str}.json')
     xgb_model.save_model(xgb_path)
     log.info(f"XGB saved: {xgb_path} (best iter: {xgb_model.best_iteration})")
 
     log.info("Training final CatBoost...")
     cb_model = train_catboost(X_train, y_train, X_val, y_val, feature_cols, params)
-    cb_path = os.path.join(MODEL_DIR, f'v2_catboost_{date_str}.cbm')
+    cb_path = os.path.join(MODEL_DIR, f'v2_catboost{tier_tag}_{date_str}.cbm')
     cb_model.save_model(cb_path)
     log.info(f"CatBoost saved: {cb_path} (best iter: {cb_model.best_iteration_})")
 
@@ -951,7 +981,8 @@ def train_final_model(df, feature_cols, params):
     }).sort_values('lgb_gain', ascending=False)
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    importance_path = os.path.join(RESULTS_DIR, 'v2_feature_importance.csv')
+    tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+    importance_path = os.path.join(RESULTS_DIR, f'v2_feature_importance{tier_tag}.csv')
     importance.to_csv(importance_path, index=False)
     log.info(f"\nTop 20 features by LGB gain:")
     log.info(importance.head(20).to_string())
@@ -992,17 +1023,42 @@ def main():
     parser.add_argument('--vix-cutoff', type=float, default=None, help='Override VIX cutoff (e.g. 30, 35, 40). 0 to disable.')
     parser.add_argument('--no-season-filter', action='store_true', help='Disable against-season pre-filter')
     parser.add_argument('--split-direction', action='store_true', help='Train separate long/short models')
+    parser.add_argument('--tier', type=str, default=None, choices=list(TIERS.keys()),
+                        help='DaysOut tier to train (e.g. 31_60, 91_120)')
+    parser.add_argument('--all-tiers', action='store_true',
+                        help='Train all 6 daysOut tiers sequentially')
     args = parser.parse_args()
 
     # Apply CLI overrides to globals
-    global VIX_CUTOFF, FILTER_AGAINST_SEASON
+    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER
     if args.vix_cutoff is not None:
         VIX_CUTOFF = args.vix_cutoff if args.vix_cutoff > 0 else None
     if args.no_season_filter:
         FILTER_AGAINST_SEASON = False
 
+    # Handle --all-tiers: run main() for each tier
+    if args.all_tiers:
+        for tier_name in TIERS:
+            log.info(f"\n{'#'*60}")
+            log.info(f"# TIER: {tier_name} (daysOut {TIERS[tier_name][0]}-{TIERS[tier_name][1]})")
+            log.info(f"{'#'*60}")
+            ACTIVE_TIER = tier_name
+            args.all_tiers = False  # prevent recursion
+            args.tier = tier_name
+            main_single(args)
+        return
+
+    if args.tier:
+        ACTIVE_TIER = args.tier
+
+    main_single(args)
+
+
+def main_single(args):
+    """Run training pipeline for a single tier."""
     log.info("ML Pattern Scorer V2 - Training Pipeline")
     log.info("=" * 60)
+    log.info(f"Tier: {ACTIVE_TIER} (daysOut {TIERS[ACTIVE_TIER][0]}-{TIERS[ACTIVE_TIER][1]})")
     if VIX_CUTOFF:
         log.info(f"VIX hurricane cutoff: {VIX_CUTOFF}")
     log.info(f"Against-season filter: {'ON' if FILTER_AGAINST_SEASON else 'OFF'}")
@@ -1014,7 +1070,8 @@ def main():
 
     # Optuna tuning
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    params_path = os.path.join(RESULTS_DIR, 'v2_tuned_params.json')
+    tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+    params_path = os.path.join(RESULTS_DIR, f'v2_tuned_params{tier_tag}.json')
     if not args.skip_optuna and not args.split_direction:
         params = run_optuna_tuning(df, feature_cols, n_trials=args.optuna_trials)
         with open(params_path, 'w') as f:
@@ -1131,8 +1188,9 @@ def main():
 
     # Save walk-forward results
     if wf_results:
+        tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
         suffix = '_split' if args.split_direction else ('_pe_cycle' if args.pe_cycle else '')
-        results_path = os.path.join(RESULTS_DIR, f'v2_walk_forward_results{suffix}.json')
+        results_path = os.path.join(RESULTS_DIR, f'v2_walk_forward_results{tier_tag}{suffix}.json')
         def convert(obj):
             if isinstance(obj, (np.integer,)):
                 return int(obj)

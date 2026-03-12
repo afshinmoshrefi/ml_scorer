@@ -48,7 +48,20 @@ log = logging.getLogger(__name__)
 TRAIN_YEARS = list(range(2000, 2026))  # 2000-2025 (V2b: extended for PE-cycle depth)
 DAYS_OUT_MIN = 10
 DAYS_OUT_MAX = 30
-OUTPUT_PATH = os.path.join(FEATURE_CACHE_DIR, 'training_data.parquet')
+
+# Tier definitions for multi-model training
+TIERS = {
+    '10_30':  (10, 30),
+    '31_60':  (31, 60),
+    '61_90':  (61, 90),
+    '91_120': (91, 120),
+    '121_200': (121, 200),
+    '201_300': (201, 300),
+}
+
+def get_output_path(days_min, days_max):
+    """Return parquet path for a given daysOut tier."""
+    return os.path.join(FEATURE_CACHE_DIR, f'training_data_{days_min}_{days_max}.parquet')
 from config_ml import SP500_SYMBOLS as SP500_SYMBOLS_PATH
 
 # ======================================================================
@@ -664,13 +677,20 @@ def load_price_csv(symbol):
     return df
 
 
-def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None):
+def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
+                   days_min=None, days_max=None):
     """
     Process a single symbol: compute all features for all training years.
     V2: Parallelized via joblib. Each worker runs this independently.
     spx_lookups: dict of {year: spx_seasonal_lookup} for rolling lookups.
+    days_min/days_max: daysOut filter range (defaults to module-level DAYS_OUT_MIN/MAX).
     Returns DataFrame or None.
     """
+    if days_min is None:
+        days_min = DAYS_OUT_MIN
+    if days_max is None:
+        days_max = DAYS_OUT_MAX
+
     # Load price data
     price_df = load_price_csv(symbol)
     if price_df is None or len(price_df) < 252:
@@ -679,7 +699,7 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None):
     data_years = len(price_df) / 252.0
 
     # Load opportunity patterns
-    patterns, combo_data = load_opp_patterns(symbol, DAYS_OUT_MIN, DAYS_OUT_MAX)
+    patterns, combo_data = load_opp_patterns(symbol, days_min, days_max)
     if not patterns:
         return None
 
@@ -796,6 +816,9 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None):
 
     # V2: Concurrent pattern count
     sym_df['pat_concurrent_count'] = [date_pattern_counter[entry_dates[i]] for i in valid_idx]
+
+    # V2b: Pattern holding period as feature (useful for multi-tier models)
+    sym_df['pat_daysOut'] = sym_df['daysOut'].astype(np.float32)
 
     # V2: Neighborhood features (per sample)
     nbr_rows = []
@@ -974,11 +997,17 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None):
     return merged
 
 
-def build_training_data(n_jobs=None):
+def build_training_data(n_jobs=None, days_min=None, days_max=None):
     """Main entry point: build the full training dataset. V2 with joblib parallelization."""
     if n_jobs is None:
         n_jobs = N_JOBS
-    log.info(f"Starting V2 training data build (years {TRAIN_YEARS[0]}-{TRAIN_YEARS[-1]}, n_jobs={n_jobs})")
+    if days_min is None:
+        days_min = DAYS_OUT_MIN
+    if days_max is None:
+        days_max = DAYS_OUT_MAX
+    output_path = get_output_path(days_min, days_max)
+    log.info(f"Starting V2 training data build (years {TRAIN_YEARS[0]}-{TRAIN_YEARS[-1]}, "
+             f"daysOut {days_min}-{days_max}, n_jobs={n_jobs})")
 
     # Step 1: Precompute market regime features (single-threaded, shared)
     log.info("Precomputing market regime features...")
@@ -1020,7 +1049,8 @@ def build_training_data(n_jobs=None):
     # Step 3: Parallel per-symbol processing
     t_start = time.time()
     results = Parallel(n_jobs=n_jobs, verbose=10)(
-        delayed(process_symbol)(symbol, mkt_regime, spy_close, etf_closes, spx_lookups)
+        delayed(process_symbol)(symbol, mkt_regime, spy_close, etf_closes, spx_lookups,
+                                days_min, days_max)
         for symbol in symbols
     )
 
@@ -1039,10 +1069,10 @@ def build_training_data(n_jobs=None):
     log.info(f"Columns ({len(df.columns)}): {list(df.columns)}")
 
     # Save
-    log.info(f"Saving to {OUTPUT_PATH}...")
-    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    df.to_parquet(OUTPUT_PATH, index=False)
-    log.info(f"Saved {OUTPUT_PATH} ({os.path.getsize(OUTPUT_PATH) / 1e6:.1f} MB)")
+    log.info(f"Saving to {output_path}...")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    df.to_parquet(output_path, index=False)
+    log.info(f"Saved {output_path} ({os.path.getsize(output_path) / 1e6:.1f} MB)")
 
     # Stats
     log.info(f"\nLabel distribution:")
@@ -1058,5 +1088,24 @@ def build_training_data(n_jobs=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--njobs', type=int, default=None, help='Number of parallel workers')
+    parser.add_argument('--days-min', type=int, default=None, help='Minimum daysOut (default: 10)')
+    parser.add_argument('--days-max', type=int, default=None, help='Maximum daysOut (default: 30)')
+    parser.add_argument('--tier', type=str, default=None,
+                        choices=list(TIERS.keys()),
+                        help='Named tier (e.g. 31_60, 91_120). Overrides --days-min/max.')
+    parser.add_argument('--all-tiers', action='store_true',
+                        help='Build training data for all 6 tiers sequentially')
     args = parser.parse_args()
-    build_training_data(n_jobs=args.njobs)
+
+    if args.all_tiers:
+        for tier_name, (dmin, dmax) in TIERS.items():
+            log.info(f"\n{'='*60}")
+            log.info(f"BUILDING TIER: {tier_name} (daysOut {dmin}-{dmax})")
+            log.info(f"{'='*60}")
+            build_training_data(n_jobs=args.njobs, days_min=dmin, days_max=dmax)
+    else:
+        days_min = args.days_min
+        days_max = args.days_max
+        if args.tier:
+            days_min, days_max = TIERS[args.tier]
+        build_training_data(n_jobs=args.njobs, days_min=days_min, days_max=days_max)
