@@ -108,8 +108,10 @@ FEATURE_COLS = [
     'pat_depth_x_vix', 'pat_quality_x_regime',
 ]
 
-# V2: Regression target
+# V2: Regression target (switchable: actual_return or mfe_return)
 LABEL_COL = 'actual_return'
+MFE_LABEL_COL = 'mfe_return'
+ACTIVE_TARGET = 'sr'  # 'sr' or 'mfe'
 # Keep hit_target for binary evaluation metrics
 BINARY_LABEL_COL = 'hit_target'
 
@@ -183,6 +185,81 @@ SPLIT_DROP_FEATURES = ['pat_direction']
 # ======================================================================
 # Evaluation helpers
 # ======================================================================
+
+def evaluate_mfe_prediction(y_mfe_actual, y_pred_mfe, y_actual_return=None):
+    """
+    Evaluate MFE model predictions on their own terms:
+    - How well does it predict actual MFE? (RMSE, R², Spearman rank correlation)
+    - Does filtering by predicted MFE give higher actual MFE? (percentile analysis)
+    - Cross-metric: do high-MFE predictions also correlate with profitable trades?
+    """
+    from scipy.stats import spearmanr
+
+    metrics = {
+        'rmse': float(np.sqrt(mean_squared_error(y_mfe_actual, y_pred_mfe))),
+        'mae': float(np.mean(np.abs(y_mfe_actual - y_pred_mfe))),
+        'r2': float(1 - np.sum((y_mfe_actual - y_pred_mfe)**2) / np.sum((y_mfe_actual - y_mfe_actual.mean())**2)),
+        'spearman_corr': float(spearmanr(y_mfe_actual, y_pred_mfe)[0]),
+        'spearman_pval': float(spearmanr(y_mfe_actual, y_pred_mfe)[1]),
+        'actual_mfe_mean': float(y_mfe_actual.mean()),
+        'actual_mfe_std': float(y_mfe_actual.std()),
+        'pred_mfe_mean': float(y_pred_mfe.mean()),
+        'pred_mfe_std': float(y_pred_mfe.std()),
+        'n_samples': len(y_mfe_actual),
+    }
+
+    # AUC: can MFE predictions separate high-MFE from low-MFE trades?
+    mfe_median = np.median(y_mfe_actual)
+    y_mfe_binary = (y_mfe_actual > mfe_median).astype(int)
+    try:
+        metrics['auc_mfe_median'] = roc_auc_score(y_mfe_binary, y_pred_mfe)
+    except ValueError:
+        metrics['auc_mfe_median'] = 0.5
+
+    # If actual_return available: can MFE predictions also separate winners?
+    if y_actual_return is not None:
+        y_win = (y_actual_return > 0).astype(int)
+        try:
+            metrics['auc_vs_winners'] = roc_auc_score(y_win, y_pred_mfe)
+        except ValueError:
+            metrics['auc_vs_winners'] = 0.5
+
+    return metrics
+
+
+def evaluate_mfe_trading(df, score_col='ml_score'):
+    """
+    Evaluate MFE model by percentile bins: does filtering by predicted MFE
+    give you higher actual MFE and higher actual returns?
+    df must have: mfe_return, actual_return, hit_target, ml_score
+    """
+    results = {}
+    pct_scores = df[score_col].rank(pct=True) * 100
+
+    results['baseline'] = {
+        'n_trades': len(df),
+        'avg_mfe': df['mfe_return'].mean(),
+        'median_mfe': df['mfe_return'].median(),
+        'avg_return': df['actual_return'].mean(),
+        'win_rate': df['hit_target'].mean(),
+        'sharpe': df['actual_return'].mean() / df['actual_return'].std() * np.sqrt(252) if df['actual_return'].std() > 0 else 0,
+    }
+
+    for t in [50, 60, 70, 80, 85, 90]:
+        filtered = df[pct_scores >= t]
+        if len(filtered) < 10:
+            continue
+        results[f'ML_{t}'] = {
+            'n_trades': len(filtered),
+            'avg_mfe': filtered['mfe_return'].mean(),
+            'median_mfe': filtered['mfe_return'].median(),
+            'avg_return': filtered['actual_return'].mean(),
+            'win_rate': filtered['hit_target'].mean(),
+            'sharpe': filtered['actual_return'].mean() / filtered['actual_return'].std() * np.sqrt(252) if filtered['actual_return'].std() > 0 else 0,
+        }
+
+    return results
+
 
 def evaluate_regression_as_binary(y_return, y_pred_return, y_hit_target):
     """
@@ -289,7 +366,10 @@ def load_training_data():
         log.warning(f"Missing {len(missing)} features: {missing}")
 
     # Read ONLY needed columns from parquet
-    keep_cols = available + ['date', 'actual_return', 'hit_target']
+    label_cols = ['date', 'actual_return', 'hit_target']
+    if ACTIVE_TARGET == 'mfe':
+        label_cols.append('mfe_return')
+    keep_cols = available + label_cols
     # Also load daysOut if pat_daysOut missing (can derive it)
     if 'pat_daysOut' not in all_cols and 'daysOut' in all_cols:
         keep_cols.append('daysOut')
@@ -309,7 +389,10 @@ def load_training_data():
     df.drop(columns=['date'], inplace=True)
 
     # Downcast float64 -> float32
-    for col in available + ['actual_return']:
+    downcast_cols = available + ['actual_return']
+    if 'mfe_return' in df.columns:
+        downcast_cols.append('mfe_return')
+    for col in downcast_cols:
         if col in df.columns and df[col].dtype == np.float64:
             df[col] = df[col].astype(np.float32)
     gc.collect()
@@ -881,30 +964,61 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False):
         cb_pred = cb_model.predict(X_val)
 
         # Evaluate
-        metrics = evaluate_regression_as_binary(actual_return, y_pred, y_val_binary)
-        lgb_metrics = evaluate_regression_as_binary(actual_return, lgb_pred, y_val_binary)
-        xgb_metrics = evaluate_regression_as_binary(actual_return, xgb_pred, y_val_binary)
-        cb_metrics = evaluate_regression_as_binary(actual_return, cb_pred, y_val_binary)
+        if ACTIVE_TARGET == 'mfe':
+            mfe_actual = df.loc[val_mask, 'mfe_return'].values
+            metrics = evaluate_mfe_prediction(mfe_actual, y_pred, y_actual_return=actual_return)
+            lgb_metrics = evaluate_mfe_prediction(mfe_actual, lgb_pred, y_actual_return=actual_return)
+            xgb_metrics = evaluate_mfe_prediction(mfe_actual, xgb_pred, y_actual_return=actual_return)
+            cb_metrics = evaluate_mfe_prediction(mfe_actual, cb_pred, y_actual_return=actual_return)
 
-        log.info(f"Val metrics (ensemble): AUC={metrics['auc_roc']:.4f}, RMSE={metrics['rmse']:.4f}, "
-                f"Acc={metrics['accuracy']:.4f}")
-        log.info(f"  LGB only: AUC={lgb_metrics['auc_roc']:.4f}, XGB only: AUC={xgb_metrics['auc_roc']:.4f}, "
-                f"CB only: AUC={cb_metrics['auc_roc']:.4f}")
+            log.info(f"Val MFE metrics (ensemble): AUC_mfe={metrics['auc_mfe_median']:.4f}, "
+                    f"Spearman={metrics['spearman_corr']:.4f}, R2={metrics['r2']:.4f}, "
+                    f"RMSE={metrics['rmse']:.4f}")
+            log.info(f"  Actual MFE: mean={metrics['actual_mfe_mean']:.2f}%, Pred MFE: mean={metrics['pred_mfe_mean']:.2f}%")
+            log.info(f"  AUC vs winners (cross-metric): {metrics['auc_vs_winners']:.4f}")
+            log.info(f"  LGB: AUC_mfe={lgb_metrics['auc_mfe_median']:.4f}, "
+                    f"XGB: AUC_mfe={xgb_metrics['auc_mfe_median']:.4f}, "
+                    f"CB: AUC_mfe={cb_metrics['auc_mfe_median']:.4f}")
 
-        # Trading performance
-        val_df = pd.DataFrame({
-            'hit_target': y_val_binary,
-            'actual_return': actual_return,
-            'ml_score': y_pred,
-        })
-        trading = evaluate_trading_performance(val_df)
+            val_df = pd.DataFrame({
+                'hit_target': y_val_binary,
+                'actual_return': actual_return,
+                'mfe_return': mfe_actual,
+                'ml_score': y_pred,
+            })
+            trading = evaluate_mfe_trading(val_df)
 
-        log.info(f"\nTrading performance ({val_year}):")
-        for name, perf in trading.items():
-            log.info(f"  {name:10s}: {perf['n_trades']:6d} trades, "
-                    f"win={perf['win_rate']:.3f}, "
-                    f"avg_ret={perf['avg_return']:.2f}%, "
-                    f"sharpe={perf['sharpe']:.2f}")
+            log.info(f"\nMFE performance ({val_year}):")
+            for name, perf in trading.items():
+                log.info(f"  {name:10s}: {perf['n_trades']:6d} trades, "
+                        f"avg_mfe={perf['avg_mfe']:.2f}%, "
+                        f"avg_ret={perf['avg_return']:.2f}%, "
+                        f"win={perf['win_rate']:.3f}, "
+                        f"sharpe={perf['sharpe']:.2f}")
+        else:
+            metrics = evaluate_regression_as_binary(actual_return, y_pred, y_val_binary)
+            lgb_metrics = evaluate_regression_as_binary(actual_return, lgb_pred, y_val_binary)
+            xgb_metrics = evaluate_regression_as_binary(actual_return, xgb_pred, y_val_binary)
+            cb_metrics = evaluate_regression_as_binary(actual_return, cb_pred, y_val_binary)
+
+            log.info(f"Val metrics (ensemble): AUC={metrics['auc_roc']:.4f}, RMSE={metrics['rmse']:.4f}, "
+                    f"Acc={metrics['accuracy']:.4f}")
+            log.info(f"  LGB only: AUC={lgb_metrics['auc_roc']:.4f}, XGB only: AUC={xgb_metrics['auc_roc']:.4f}, "
+                    f"CB only: AUC={cb_metrics['auc_roc']:.4f}")
+
+            val_df = pd.DataFrame({
+                'hit_target': y_val_binary,
+                'actual_return': actual_return,
+                'ml_score': y_pred,
+            })
+            trading = evaluate_trading_performance(val_df)
+
+            log.info(f"\nTrading performance ({val_year}):")
+            for name, perf in trading.items():
+                log.info(f"  {name:10s}: {perf['n_trades']:6d} trades, "
+                        f"win={perf['win_rate']:.3f}, "
+                        f"avg_ret={perf['avg_return']:.2f}%, "
+                        f"sharpe={perf['sharpe']:.2f}")
 
         del X_train, X_val, y_train, y_val, models
         gc.collect()
@@ -955,19 +1069,20 @@ def train_final_model(df, feature_cols, params):
     log.info("Training final LightGBM...")
     lgb_model = train_lgb(X_train, y_train, X_val, y_val, feature_cols, params)
     tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
-    lgb_path = os.path.join(MODEL_DIR, f'v2_lgb{tier_tag}_{date_str}.txt')
+    target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
+    lgb_path = os.path.join(MODEL_DIR, f'v2_lgb{tier_tag}{target_tag}_{date_str}.txt')
     lgb_model.save_model(lgb_path)
     log.info(f"LGB saved: {lgb_path} (best iter: {lgb_model.best_iteration})")
 
     log.info("Training final XGBoost...")
     xgb_model = train_xgb(X_train, y_train, X_val, y_val, feature_cols, params)
-    xgb_path = os.path.join(MODEL_DIR, f'v2_xgb{tier_tag}_{date_str}.json')
+    xgb_path = os.path.join(MODEL_DIR, f'v2_xgb{tier_tag}{target_tag}_{date_str}.json')
     xgb_model.save_model(xgb_path)
     log.info(f"XGB saved: {xgb_path} (best iter: {xgb_model.best_iteration})")
 
     log.info("Training final CatBoost...")
     cb_model = train_catboost(X_train, y_train, X_val, y_val, feature_cols, params)
-    cb_path = os.path.join(MODEL_DIR, f'v2_catboost{tier_tag}_{date_str}.cbm')
+    cb_path = os.path.join(MODEL_DIR, f'v2_catboost{tier_tag}{target_tag}_{date_str}.cbm')
     cb_model.save_model(cb_path)
     log.info(f"CatBoost saved: {cb_path} (best iter: {cb_model.best_iteration_})")
 
@@ -982,7 +1097,8 @@ def train_final_model(df, feature_cols, params):
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
-    importance_path = os.path.join(RESULTS_DIR, f'v2_feature_importance{tier_tag}.csv')
+    target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
+    importance_path = os.path.join(RESULTS_DIR, f'v2_feature_importance{tier_tag}{target_tag}.csv')
     importance.to_csv(importance_path, index=False)
     log.info(f"\nTop 20 features by LGB gain:")
     log.info(importance.head(20).to_string())
@@ -993,22 +1109,45 @@ def train_final_model(df, feature_cols, params):
         y_pred = predict_ensemble(models, X_val, feature_cols)
         actual_return = df.loc[val_mask, 'actual_return'].values
 
-        metrics = evaluate_regression_as_binary(actual_return, y_pred, y_val_binary)
-        log.info(f"\n2025 holdout: AUC={metrics['auc_roc']:.4f}, RMSE={metrics['rmse']:.4f}, "
-                f"Acc={metrics['accuracy']:.4f}")
+        if ACTIVE_TARGET == 'mfe':
+            mfe_actual = df.loc[val_mask, 'mfe_return'].values
+            metrics = evaluate_mfe_prediction(mfe_actual, y_pred, y_actual_return=actual_return)
+            log.info(f"\n2025 holdout MFE: AUC_mfe={metrics['auc_mfe_median']:.4f}, "
+                    f"Spearman={metrics['spearman_corr']:.4f}, R2={metrics['r2']:.4f}, "
+                    f"RMSE={metrics['rmse']:.4f}")
+            log.info(f"  AUC vs winners: {metrics['auc_vs_winners']:.4f}")
 
-        val_df = pd.DataFrame({
-            'hit_target': y_val_binary,
-            'actual_return': actual_return,
-            'ml_score': y_pred,
-        })
-        trading = evaluate_trading_performance(val_df)
-        log.info(f"\n2025 holdout trading performance:")
-        for name, perf in trading.items():
-            log.info(f"  {name:10s}: {perf['n_trades']:6d} trades, "
-                    f"win={perf['win_rate']:.3f}, "
-                    f"avg_ret={perf['avg_return']:.2f}%, "
-                    f"sharpe={perf['sharpe']:.2f}")
+            val_df = pd.DataFrame({
+                'hit_target': y_val_binary,
+                'actual_return': actual_return,
+                'mfe_return': mfe_actual,
+                'ml_score': y_pred,
+            })
+            trading = evaluate_mfe_trading(val_df)
+            log.info(f"\n2025 holdout MFE performance:")
+            for name, perf in trading.items():
+                log.info(f"  {name:10s}: {perf['n_trades']:6d} trades, "
+                        f"avg_mfe={perf['avg_mfe']:.2f}%, "
+                        f"avg_ret={perf['avg_return']:.2f}%, "
+                        f"win={perf['win_rate']:.3f}, "
+                        f"sharpe={perf['sharpe']:.2f}")
+        else:
+            metrics = evaluate_regression_as_binary(actual_return, y_pred, y_val_binary)
+            log.info(f"\n2025 holdout: AUC={metrics['auc_roc']:.4f}, RMSE={metrics['rmse']:.4f}, "
+                    f"Acc={metrics['accuracy']:.4f}")
+
+            val_df = pd.DataFrame({
+                'hit_target': y_val_binary,
+                'actual_return': actual_return,
+                'ml_score': y_pred,
+            })
+            trading = evaluate_trading_performance(val_df)
+            log.info(f"\n2025 holdout trading performance:")
+            for name, perf in trading.items():
+                log.info(f"  {name:10s}: {perf['n_trades']:6d} trades, "
+                        f"win={perf['win_rate']:.3f}, "
+                        f"avg_ret={perf['avg_return']:.2f}%, "
+                        f"sharpe={perf['sharpe']:.2f}")
 
     return models, importance
 
@@ -1027,14 +1166,19 @@ def main():
                         help='DaysOut tier to train (e.g. 31_60, 91_120)')
     parser.add_argument('--all-tiers', action='store_true',
                         help='Train all 6 daysOut tiers sequentially')
+    parser.add_argument('--target', type=str, default='sr', choices=['sr', 'mfe'],
+                        help='Training target: sr (actual_return) or mfe (mfe_return)')
     args = parser.parse_args()
 
     # Apply CLI overrides to globals
-    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER
+    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER, LABEL_COL, ACTIVE_TARGET
     if args.vix_cutoff is not None:
         VIX_CUTOFF = args.vix_cutoff if args.vix_cutoff > 0 else None
     if args.no_season_filter:
         FILTER_AGAINST_SEASON = False
+    if args.target == 'mfe':
+        LABEL_COL = MFE_LABEL_COL
+        ACTIVE_TARGET = 'mfe'
 
     # Handle --all-tiers: run main() for each tier
     if args.all_tiers:
@@ -1059,6 +1203,7 @@ def main_single(args):
     log.info("ML Pattern Scorer V2 - Training Pipeline")
     log.info("=" * 60)
     log.info(f"Tier: {ACTIVE_TIER} (daysOut {TIERS[ACTIVE_TIER][0]}-{TIERS[ACTIVE_TIER][1]})")
+    log.info(f"Target: {ACTIVE_TARGET.upper()} ({LABEL_COL})")
     if VIX_CUTOFF:
         log.info(f"VIX hurricane cutoff: {VIX_CUTOFF}")
     log.info(f"Against-season filter: {'ON' if FILTER_AGAINST_SEASON else 'OFF'}")
@@ -1071,7 +1216,8 @@ def main_single(args):
     # Optuna tuning
     os.makedirs(RESULTS_DIR, exist_ok=True)
     tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
-    params_path = os.path.join(RESULTS_DIR, f'v2_tuned_params{tier_tag}.json')
+    target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
+    params_path = os.path.join(RESULTS_DIR, f'v2_tuned_params{tier_tag}{target_tag}.json')
     if not args.skip_optuna and not args.split_direction:
         params = run_optuna_tuning(df, feature_cols, n_trials=args.optuna_trials)
         with open(params_path, 'w') as f:
@@ -1098,28 +1244,45 @@ def main_single(args):
         # Summary
         log.info(f"\n{'='*60}")
         mode_str = "SPLIT-DIRECTION" if args.split_direction else ("PE-CYCLE" if args.pe_cycle else "STANDARD")
-        log.info(f"{mode_str} WALK-FORWARD SUMMARY")
+        log.info(f"{mode_str} WALK-FORWARD SUMMARY (target={ACTIVE_TARGET.upper()})")
         log.info(f"{'='*60}")
         for r in wf_results:
             m = r['metrics']
             t = r['trading']
             base = t['baseline']
             label = r.get('phase', r['val_year'])
-            best_ml = None
-            best_ml_name = 'none'
-            for k, v in t.items():
-                if k.startswith('ML_') and (best_ml is None or v['win_rate'] > best_ml['win_rate']):
-                    best_ml = v
-                    best_ml_name = k
-            if best_ml:
-                improvement = (best_ml['win_rate'] - base['win_rate']) * 100
-                log.info(f"  {label}: AUC={m['auc_roc']:.3f}, RMSE={m['rmse']:.4f}, "
-                        f"base_wr={base['win_rate']:.3f}, "
-                        f"best_ml_wr={best_ml['win_rate']:.3f} ({best_ml_name}, {best_ml['n_trades']} trades), "
-                        f"+{improvement:.1f}pp")
+            if ACTIVE_TARGET == 'mfe':
+                best_ml = None
+                best_ml_name = 'none'
+                for k, v in t.items():
+                    if k.startswith('ML_') and (best_ml is None or v['avg_mfe'] > best_ml['avg_mfe']):
+                        best_ml = v
+                        best_ml_name = k
+                if best_ml:
+                    mfe_lift = best_ml['avg_mfe'] - base['avg_mfe']
+                    log.info(f"  {label}: AUC_mfe={m['auc_mfe_median']:.3f}, Spearman={m['spearman_corr']:.3f}, "
+                            f"base_mfe={base['avg_mfe']:.2f}%, "
+                            f"best_ml_mfe={best_ml['avg_mfe']:.2f}% ({best_ml_name}), "
+                            f"+{mfe_lift:.2f}%, win={best_ml['win_rate']:.3f}")
+                else:
+                    log.info(f"  {label}: AUC_mfe={m['auc_mfe_median']:.3f}, Spearman={m['spearman_corr']:.3f}, "
+                            f"base_mfe={base['avg_mfe']:.2f}%")
             else:
-                log.info(f"  {label}: AUC={m['auc_roc']:.3f}, RMSE={m['rmse']:.4f}, "
-                        f"base_wr={base['win_rate']:.3f}")
+                best_ml = None
+                best_ml_name = 'none'
+                for k, v in t.items():
+                    if k.startswith('ML_') and (best_ml is None or v['win_rate'] > best_ml['win_rate']):
+                        best_ml = v
+                        best_ml_name = k
+                if best_ml:
+                    improvement = (best_ml['win_rate'] - base['win_rate']) * 100
+                    log.info(f"  {label}: AUC={m['auc_roc']:.3f}, RMSE={m['rmse']:.4f}, "
+                            f"base_wr={base['win_rate']:.3f}, "
+                            f"best_ml_wr={best_ml['win_rate']:.3f} ({best_ml_name}, {best_ml['n_trades']} trades), "
+                            f"+{improvement:.1f}pp")
+                else:
+                    log.info(f"  {label}: AUC={m['auc_roc']:.3f}, RMSE={m['rmse']:.4f}, "
+                            f"base_wr={base['win_rate']:.3f}")
 
         # Split-direction: print per-direction summary
         if args.split_direction:
@@ -1189,8 +1352,9 @@ def main_single(args):
     # Save walk-forward results
     if wf_results:
         tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+        target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
         suffix = '_split' if args.split_direction else ('_pe_cycle' if args.pe_cycle else '')
-        results_path = os.path.join(RESULTS_DIR, f'v2_walk_forward_results{tier_tag}{suffix}.json')
+        results_path = os.path.join(RESULTS_DIR, f'v2_walk_forward_results{tier_tag}{target_tag}{suffix}.json')
         def convert(obj):
             if isinstance(obj, (np.integer,)):
                 return int(obj)

@@ -792,6 +792,25 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
     dir_multiplier = np.array([1 if d == 'l' else -1 for d in directions])
     actual_returns = actual_returns * dir_multiplier
 
+    # Compute MFE (maximum favorable excursion) return per sample
+    # For longs: max close in window. For shorts: min close in window.
+    mfe_returns = np.full(len(rows_entry), np.nan)
+    for i in range(len(rows_entry)):
+        if np.isnan(entry_prices[i]) or entry_prices[i] == 0:
+            continue
+        ed = entry_dates[i]
+        ex = exit_dates_raw[i]
+        # Get all closes between entry (exclusive) and exit (inclusive)
+        window = close_values.loc[(close_values.index > ed) & (close_values.index <= ex + pd.Timedelta(days=4))]
+        if len(window) == 0:
+            continue
+        if directions[i] == 'l':
+            best_price = window.max()
+            mfe_returns[i] = (best_price - entry_prices[i]) / entry_prices[i] * 100
+        else:
+            best_price = window.min()
+            mfe_returns[i] = (entry_prices[i] - best_price) / entry_prices[i] * 100
+
     # Filter valid
     valid = ~np.isnan(actual_returns) & ~np.isnan(entry_prices) & (entry_prices != 0)
     valid_idx = np.where(valid)[0]
@@ -807,6 +826,7 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
         'direction': [directions[i] for i in valid_idx],
         'hit_target': (actual_returns[valid_idx] > 0).astype(int),
         'actual_return': actual_returns[valid_idx],
+        'mfe_return': mfe_returns[valid_idx],
     })
 
     # Merge pattern features
