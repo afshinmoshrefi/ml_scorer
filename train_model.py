@@ -893,9 +893,10 @@ def train_final_model_split(df, feature_cols, params):
     return all_models, importance
 
 
-def walk_forward_train(df, feature_cols, params, pe_cycle=False):
+def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_predictions=False):
     """Run walk-forward validation with ensemble (LightGBM + XGBoost + CatBoost)."""
     results = []
+    all_predictions = []  # for --save-predictions
 
     windows = PE_CYCLE_WINDOWS if pe_cycle else WALK_FORWARD_WINDOWS
 
@@ -1020,6 +1021,19 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False):
                         f"avg_ret={perf['avg_return']:.2f}%, "
                         f"sharpe={perf['sharpe']:.2f}")
 
+        # Save per-sample predictions for calibration
+        if save_predictions:
+            pred_df = pd.DataFrame({
+                'val_year': val_year,
+                'predicted': y_pred,
+                'actual_return': actual_return,
+                'hit_target': y_val_binary,
+            })
+            if ACTIVE_TARGET == 'mfe':
+                pred_df['mfe_return'] = mfe_actual
+            all_predictions.append(pred_df)
+            log.info(f"  Saved {len(pred_df):,} predictions for calibration")
+
         del X_train, X_val, y_train, y_val, models
         gc.collect()
 
@@ -1040,7 +1054,89 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False):
             result_entry['train_end'] = train_end
         results.append(result_entry)
 
+    # Save concatenated predictions for calibration
+    if save_predictions and all_predictions:
+        pred_all = pd.concat(all_predictions, ignore_index=True)
+        tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+        target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else '_sr'
+        pred_path = os.path.join(RESULTS_DIR, f'wf_predictions{target_tag}{tier_tag}.parquet')
+        pred_all.to_parquet(pred_path, index=False)
+        log.info(f"\nSaved {len(pred_all):,} walk-forward predictions to {pred_path}")
+        log.info(f"  Columns: {list(pred_all.columns)}")
+        log.info(f"  Val years: {sorted(pred_all['val_year'].unique())}")
+        del pred_all, all_predictions
+        gc.collect()
+
     return results
+
+
+def build_calibration_tables(pred_path):
+    """Build empirical calibration tables from saved walk-forward predictions.
+
+    Produces:
+    - For SR: P(actual_return > 0) per prediction bin (win_prob)
+              P(actual_return >= predicted) per prediction bin (hit_pred)
+    - For MFE: P(mfe_return >= predicted) per prediction bin (hit_pred)
+    """
+    import pyarrow.parquet as pq
+
+    log.info(f"\nBuilding calibration tables from {pred_path}")
+    df = pd.read_parquet(pred_path)
+    log.info(f"  Loaded {len(df):,} samples, columns: {list(df.columns)}")
+
+    is_mfe = 'mfe_return' in df.columns
+    target_label = 'mfe' if is_mfe else 'sr'
+
+    # Use 20 equal-frequency bins on the predicted values
+    n_bins = 20
+    df['pred_bin'] = pd.qcut(df['predicted'], n_bins, labels=False, duplicates='drop')
+
+    calibration = {'target': target_label, 'n_samples': len(df), 'n_bins': n_bins, 'bins': []}
+
+    for bin_id in sorted(df['pred_bin'].unique()):
+        bin_df = df[df['pred_bin'] == bin_id]
+        pred_min = float(bin_df['predicted'].min())
+        pred_max = float(bin_df['predicted'].max())
+        pred_mean = float(bin_df['predicted'].mean())
+        n = len(bin_df)
+
+        entry = {
+            'bin': int(bin_id),
+            'pred_min': round(pred_min, 4),
+            'pred_max': round(pred_max, 4),
+            'pred_mean': round(pred_mean, 4),
+            'n_samples': n,
+        }
+
+        # Win probability: P(actual_return > 0)
+        entry['win_prob'] = round(float((bin_df['actual_return'] > 0).mean()), 4)
+
+        if is_mfe:
+            # P(mfe_return >= predicted_mfe)
+            entry['p_hit_pred'] = round(float((bin_df['mfe_return'] >= bin_df['predicted']).mean()), 4)
+            entry['avg_mfe'] = round(float(bin_df['mfe_return'].mean()), 4)
+        else:
+            # P(actual_return >= predicted_return)
+            entry['p_hit_pred'] = round(float((bin_df['actual_return'] >= bin_df['predicted']).mean()), 4)
+            entry['avg_return'] = round(float(bin_df['actual_return'].mean()), 4)
+
+        calibration['bins'].append(entry)
+
+    # Log summary
+    log.info(f"\n  Calibration table ({target_label}):")
+    log.info(f"  {'Bin':>4s} {'Pred Range':>20s} {'N':>8s} {'WinProb':>8s} {'P(Hit)':>8s}")
+    for b in calibration['bins']:
+        log.info(f"  {b['bin']:4d} [{b['pred_min']:7.2f}, {b['pred_max']:7.2f}] "
+                f"{b['n_samples']:8,d} {b['win_prob']:8.3f} {b['p_hit_pred']:8.3f}")
+
+    # Save
+    tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+    cal_path = os.path.join(RESULTS_DIR, f'calibration_{target_label}{tier_tag}.json')
+    with open(cal_path, 'w') as f:
+        json.dump(calibration, f, indent=2)
+    log.info(f"\n  Saved calibration to {cal_path}")
+
+    return calibration
 
 
 def train_final_model(df, feature_cols, params):
@@ -1168,6 +1264,8 @@ def main():
                         help='Train all 6 daysOut tiers sequentially')
     parser.add_argument('--target', type=str, default='sr', choices=['sr', 'mfe'],
                         help='Training target: sr (actual_return) or mfe (mfe_return)')
+    parser.add_argument('--save-predictions', action='store_true',
+                        help='Save per-sample WF predictions for calibration tables')
     args = parser.parse_args()
 
     # Apply CLI overrides to globals
@@ -1239,7 +1337,8 @@ def main_single(args):
         else:
             mode_label = "PE-Cycle" if args.pe_cycle else "Standard"
             log.info(f"\n\nPHASE 1: {mode_label} Walk-Forward Validation (3-model ensemble)")
-            wf_results = walk_forward_train(df, feature_cols, params, pe_cycle=args.pe_cycle)
+            wf_results = walk_forward_train(df, feature_cols, params, pe_cycle=args.pe_cycle,
+                                            save_predictions=args.save_predictions)
 
         # Summary
         log.info(f"\n{'='*60}")
@@ -1396,6 +1495,14 @@ def main_single(args):
         with open(results_path, 'w') as f:
             json.dump(serializable, f, indent=2)
         log.info(f"\nResults saved to {results_path}")
+
+    # Build calibration tables if predictions were saved
+    if args.save_predictions and wf_results:
+        tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+        target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else '_sr'
+        pred_path = os.path.join(RESULTS_DIR, f'wf_predictions{target_tag}{tier_tag}.parquet')
+        if os.path.exists(pred_path):
+            build_calibration_tables(pred_path)
 
     log.info("\nV2 Training Complete!")
 

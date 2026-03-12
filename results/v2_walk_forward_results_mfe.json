@@ -2,7 +2,7 @@
   {
     "val_year": 2018,
     "best_iteration": 84,
-    "train_time": 173.2934672832489,
+    "train_time": 173.53727054595947,
     "train_end": 2017,
     "metrics": {
       "rmse": 4.348405322720619,
@@ -122,7 +122,7 @@
   {
     "val_year": 2019,
     "best_iteration": 36,
-    "train_time": 190.05901789665222,
+    "train_time": 194.68435788154602,
     "train_end": 2018,
     "metrics": {
       "rmse": 4.367765621905951,
@@ -242,7 +242,7 @@
   {
     "val_year": 2020,
     "best_iteration": 118,
-    "train_time": 350.9342579841614,
+    "train_time": 352.288204908371,
     "train_end": 2019,
     "metrics": {
       "rmse": 7.104151259303818,
@@ -362,7 +362,7 @@
   {
     "val_year": 2021,
     "best_iteration": 44,
-    "train_time": 267.08341574668884,
+    "train_time": 283.02057456970215,
     "train_end": 2020,
     "metrics": {
       "rmse": 4.662505135371039,
@@ -482,7 +482,7 @@
   {
     "val_year": 2022,
     "best_iteration": 60,
-    "train_time": 316.865234375,
+    "train_time": 318.1746246814728,
     "train_end": 2021,
     "metrics": {
       "rmse": 5.605912912165463,
@@ -602,7 +602,7 @@
   {
     "val_year": 2023,
     "best_iteration": 105,
-    "train_time": 367.98531460762024,
+    "train_time": 369.5382401943207,
     "train_end": 2022,
     "metrics": {
       "rmse": 4.789653531376817,
@@ -722,7 +722,7 @@
   {
     "val_year": 2024,
     "best_iteration": 65,
-    "train_time": 314.2521905899048,
+    "train_time": 314.3411371707916,
     "train_end": 2023,
     "metrics": {
       "rmse": 4.884282855705518,
@@ -842,7 +842,7 @@
   {
     "val_year": 2025,
     "best_iteration": 267,
-    "train_time": 553.9866740703583,
+    "train_time": 564.9198360443115,
     "train_end": 2024,
     "metrics": {
       "rmse": 5.0398840031901955,

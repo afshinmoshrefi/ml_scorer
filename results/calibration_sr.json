@@ -1,0 +1,207 @@
+{
+  "target": "sr",
+  "n_samples": 11004843,
+  "n_bins": 20,
+  "bins": [
+    {
+      "bin": 0,
+      "pred_min": -8.4597,
+      "pred_max": -0.5641,
+      "pred_mean": -0.9931,
+      "n_samples": 550244,
+      "win_prob": 0.511,
+      "p_hit_pred": 0.5762,
+      "avg_return": -0.267
+    },
+    {
+      "bin": 1,
+      "pred_min": -0.5641,
+      "pred_max": -0.1435,
+      "pred_mean": -0.3366,
+      "n_samples": 550241,
+      "win_prob": 0.581,
+      "p_hit_pred": 0.6048,
+      "avg_return": 0.7362
+    },
+    {
+      "bin": 2,
+      "pred_min": -0.1435,
+      "pred_max": 0.1672,
+      "pred_mean": 0.0225,
+      "n_samples": 550242,
+      "win_prob": 0.5785,
+      "p_hit_pred": 0.5765,
+      "avg_return": 0.651
+    },
+    {
+      "bin": 3,
+      "pred_min": 0.1672,
+      "pred_max": 0.4266,
+      "pred_mean": 0.2982,
+      "n_samples": 550242,
+      "win_prob": 0.5631,
+      "p_hit_pred": 0.5372,
+      "avg_return": 0.2754
+    },
+    {
+      "bin": 4,
+      "pred_min": 0.4266,
+      "pred_max": 0.6083,
+      "pred_mean": 0.5237,
+      "n_samples": 550242,
+      "win_prob": 0.5627,
+      "p_hit_pred": 0.5144,
+      "avg_return": 0.2241
+    },
+    {
+      "bin": 5,
+      "pred_min": 0.6083,
+      "pred_max": 0.7155,
+      "pred_mean": 0.6675,
+      "n_samples": 550242,
+      "win_prob": 0.5602,
+      "p_hit_pred": 0.4943,
+      "avg_return": 0.1602
+    },
+    {
+      "bin": 6,
+      "pred_min": 0.7155,
+      "pred_max": 0.7941,
+      "pred_mean": 0.7543,
+      "n_samples": 550242,
+      "win_prob": 0.6073,
+      "p_hit_pred": 0.5299,
+      "avg_return": 0.7012
+    },
+    {
+      "bin": 7,
+      "pred_min": 0.7941,
+      "pred_max": 0.8922,
+      "pred_mean": 0.8418,
+      "n_samples": 550243,
+      "win_prob": 0.6422,
+      "p_hit_pred": 0.5631,
+      "avg_return": 1.1508
+    },
+    {
+      "bin": 8,
+      "pred_min": 0.8922,
+      "pred_max": 1.0045,
+      "pred_mean": 0.9474,
+      "n_samples": 550241,
+      "win_prob": 0.6545,
+      "p_hit_pred": 0.5655,
+      "avg_return": 1.3163
+    },
+    {
+      "bin": 9,
+      "pred_min": 1.0045,
+      "pred_max": 1.1225,
+      "pred_mean": 1.063,
+      "n_samples": 550243,
+      "win_prob": 0.6757,
+      "p_hit_pred": 0.5681,
+      "avg_return": 1.4289
+    },
+    {
+      "bin": 10,
+      "pred_min": 1.1225,
+      "pred_max": 1.2499,
+      "pred_mean": 1.1852,
+      "n_samples": 550242,
+      "win_prob": 0.6923,
+      "p_hit_pred": 0.5754,
+      "avg_return": 1.592
+    },
+    {
+      "bin": 11,
+      "pred_min": 1.2499,
+      "pred_max": 1.388,
+      "pred_mean": 1.3177,
+      "n_samples": 550242,
+      "win_prob": 0.7087,
+      "p_hit_pred": 0.5795,
+      "avg_return": 1.8439
+    },
+    {
+      "bin": 12,
+      "pred_min": 1.388,
+      "pred_max": 1.5428,
+      "pred_mean": 1.464,
+      "n_samples": 550242,
+      "win_prob": 0.7226,
+      "p_hit_pred": 0.5796,
+      "avg_return": 2.1357
+    },
+    {
+      "bin": 13,
+      "pred_min": 1.5428,
+      "pred_max": 1.717,
+      "pred_mean": 1.6281,
+      "n_samples": 550242,
+      "win_prob": 0.7416,
+      "p_hit_pred": 0.5852,
+      "avg_return": 2.4218
+    },
+    {
+      "bin": 14,
+      "pred_min": 1.717,
+      "pred_max": 1.9169,
+      "pred_mean": 1.8151,
+      "n_samples": 550242,
+      "win_prob": 0.757,
+      "p_hit_pred": 0.5834,
+      "avg_return": 2.7013
+    },
+    {
+      "bin": 15,
+      "pred_min": 1.9169,
+      "pred_max": 2.147,
+      "pred_mean": 2.0288,
+      "n_samples": 550242,
+      "win_prob": 0.7661,
+      "p_hit_pred": 0.578,
+      "avg_return": 2.9433
+    },
+    {
+      "bin": 16,
+      "pred_min": 2.147,
+      "pred_max": 2.4302,
+      "pred_mean": 2.2825,
+      "n_samples": 550242,
+      "win_prob": 0.7752,
+      "p_hit_pred": 0.5722,
+      "avg_return": 3.2653
+    },
+    {
+      "bin": 17,
+      "pred_min": 2.4302,
+      "pred_max": 2.8087,
+      "pred_mean": 2.6086,
+      "n_samples": 550242,
+      "win_prob": 0.7873,
+      "p_hit_pred": 0.5709,
+      "avg_return": 3.7563
+    },
+    {
+      "bin": 18,
+      "pred_min": 2.8087,
+      "pred_max": 3.4393,
+      "pred_mean": 3.0883,
+      "n_samples": 550242,
+      "win_prob": 0.8189,
+      "p_hit_pred": 0.5884,
+      "avg_return": 4.7406
+    },
+    {
+      "bin": 19,
+      "pred_min": 3.4393,
+      "pred_max": 30.0441,
+      "pred_mean": 4.3778,
+      "n_samples": 550243,
+      "win_prob": 0.8452,
+      "p_hit_pred": 0.6061,
+      "avg_return": 6.9662
+    }
+  ]
+}
