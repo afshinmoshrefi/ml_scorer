@@ -34,12 +34,20 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from .config import (
-    US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
-    YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
-    get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
-    ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
-)
+try:
+    from .config import (
+        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
+        YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
+        get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
+        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
+    )
+except ImportError:
+    from config import (
+        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
+        YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
+        get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
+        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
+    )
 
 # SPX_SEASONAL_CUTOFF_YEAR is not in the package config; define here.
 # Training used 1960-1999 to avoid leakage into 2000+ training data.

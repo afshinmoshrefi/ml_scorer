@@ -18,9 +18,14 @@ import os
 
 from flask import Flask, request, jsonify
 
-from .config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
-from .scorer import ScorerManager
-from .feature_engine import FeatureEngine
+try:
+    from .config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
+    from .scorer import ScorerManager
+    from .feature_engine import FeatureEngine
+except ImportError:
+    from config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
+    from scorer import ScorerManager
+    from feature_engine import FeatureEngine
 
 # Logging
 logging.basicConfig(
