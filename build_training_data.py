@@ -35,7 +35,8 @@ from joblib import Parallel, delayed
 from config_ml import (
     US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
     FEATURE_CACHE_DIR, TICKER_SECTOR, SECTOR_ETF, MAX_DEPTH_CAP, get_pe_year,
-    N_JOBS, CSV_DIR, SPX_SEASONAL_CUTOFF_YEAR, SPX_SEASONAL_FORWARD_DAYS
+    N_JOBS, CSV_DIR, SPX_SEASONAL_CUTOFF_YEAR, SPX_SEASONAL_FORWARD_DAYS,
+    ETF_OPP_DIR, ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
@@ -383,7 +384,7 @@ def compute_sector_rs(stock_close, sector_etf_sym, spy_close, etf_data):
 # Pattern Feature Extraction
 # ======================================================================
 
-def load_opp_patterns(symbol, days_min, days_max):
+def load_opp_patterns(symbol, days_min, days_max, opp_base_dir=None):
     """
     Load opportunity data for a symbol and extract unique patterns.
     Uses raw string splitting for speed (3-4x faster than csv.DictReader).
@@ -391,7 +392,9 @@ def load_opp_patterns(symbol, days_min, days_max):
         patterns: set of (month_day_str, daysOut, direction) e.g. ('03-01', 12, 'l')
         combo_data: dict of combo_name -> {(date_str, daysOut, dir) -> row_dict}
     """
-    opp_dir = os.path.join(OPP_BY_SYMBOL_DIR, symbol)
+    if opp_base_dir is None:
+        opp_base_dir = OPP_BY_SYMBOL_DIR
+    opp_dir = os.path.join(opp_base_dir, symbol)
     if not os.path.isdir(opp_dir):
         return set(), {}
 
@@ -666,9 +669,11 @@ def load_sp500_symbols():
     return df['symbols'].tolist()
 
 
-def load_price_csv(symbol):
-    """Load a US stock price CSV."""
-    path = os.path.join(US_CSV_DIR, f'{symbol}.csv')
+def load_price_csv(symbol, csv_dir=None):
+    """Load a stock/ETF price CSV."""
+    if csv_dir is None:
+        csv_dir = US_CSV_DIR
+    path = os.path.join(csv_dir, f'{symbol}.csv')
     if not os.path.exists(path):
         return None
     df = pd.read_csv(path, index_col=0)
@@ -678,28 +683,33 @@ def load_price_csv(symbol):
 
 
 def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
-                   days_min=None, days_max=None):
+                   days_min=None, days_max=None, csv_dir=None, opp_base_dir=None,
+                   sector_lookup=None):
     """
     Process a single symbol: compute all features for all training years.
     V2: Parallelized via joblib. Each worker runs this independently.
     spx_lookups: dict of {year: spx_seasonal_lookup} for rolling lookups.
     days_min/days_max: daysOut filter range (defaults to module-level DAYS_OUT_MIN/MAX).
+    csv_dir/opp_base_dir: override directories for ETF support.
+    sector_lookup: dict mapping symbol->sector (defaults to TICKER_SECTOR).
     Returns DataFrame or None.
     """
     if days_min is None:
         days_min = DAYS_OUT_MIN
     if days_max is None:
         days_max = DAYS_OUT_MAX
+    if sector_lookup is None:
+        sector_lookup = TICKER_SECTOR
 
     # Load price data
-    price_df = load_price_csv(symbol)
+    price_df = load_price_csv(symbol, csv_dir=csv_dir)
     if price_df is None or len(price_df) < 252:
         return None
 
     data_years = len(price_df) / 252.0
 
     # Load opportunity patterns
-    patterns, combo_data = load_opp_patterns(symbol, days_min, days_max)
+    patterns, combo_data = load_opp_patterns(symbol, days_min, days_max, opp_base_dir=opp_base_dir)
     if not patterns:
         return None
 
@@ -924,8 +934,11 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
     merged['pat_dir_x_mkt_trend'] = pat_dir_sign * spy_trend
 
     # pat_dir_x_sector_trend: pattern direction aligned with sector ETF trend?
-    sector = TICKER_SECTOR.get(symbol)
+    sector = sector_lookup.get(symbol)
     etf_sym = SECTOR_ETF.get(sector, '') if sector else ''
+    # For ETF categories not in SECTOR_ETF, try ETF_CATEGORY_SECTOR_ETF
+    if not etf_sym and sector:
+        etf_sym = ETF_CATEGORY_SECTOR_ETF.get(sector, '')
     if etf_sym and etf_sym in etf_closes:
         etf_c = etf_closes[etf_sym]
         etf_at_date = etf_c.reindex(merged['date'], method='ffill')
@@ -1017,17 +1030,26 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
     return merged
 
 
-def build_training_data(n_jobs=None, days_min=None, days_max=None):
-    """Main entry point: build the full training dataset. V2 with joblib parallelization."""
+def build_training_data(n_jobs=None, days_min=None, days_max=None, etf_mode=False):
+    """Main entry point: build the full training dataset. V2 with joblib parallelization.
+    etf_mode: if True, build ETF training data instead of stocks.
+    """
     if n_jobs is None:
         n_jobs = N_JOBS
     if days_min is None:
         days_min = DAYS_OUT_MIN
     if days_max is None:
         days_max = DAYS_OUT_MAX
-    output_path = get_output_path(days_min, days_max)
-    log.info(f"Starting V2 training data build (years {TRAIN_YEARS[0]}-{TRAIN_YEARS[-1]}, "
-             f"daysOut {days_min}-{days_max}, n_jobs={n_jobs})")
+
+    if etf_mode:
+        tier_tag = f'{days_min}_{days_max}'
+        output_path = os.path.join(FEATURE_CACHE_DIR, f'training_data_{tier_tag}_etf.parquet')
+        log.info(f"Starting ETF training data build (years {TRAIN_YEARS[0]}-{TRAIN_YEARS[-1]}, "
+                 f"daysOut {days_min}-{days_max}, n_jobs={n_jobs})")
+    else:
+        output_path = get_output_path(days_min, days_max)
+        log.info(f"Starting V2 training data build (years {TRAIN_YEARS[0]}-{TRAIN_YEARS[-1]}, "
+                 f"daysOut {days_min}-{days_max}, n_jobs={n_jobs})")
 
     # Step 1: Precompute market regime features (single-threaded, shared)
     log.info("Precomputing market regime features...")
@@ -1062,15 +1084,27 @@ def build_training_data(n_jobs=None, days_min=None, days_max=None):
     log.info(f"SPX seasonal lookups computed in {time.time()-t0:.1f}s")
 
     # Step 2: Get symbol list
-    symbols = load_sp500_symbols()
-    symbols = [s for s in symbols if os.path.isdir(os.path.join(OPP_BY_SYMBOL_DIR, s))]
-    log.info(f"Processing {len(symbols)} symbols with {n_jobs} workers")
+    if etf_mode:
+        # Use ETF symbols from config, filtered to those with opportunity dirs
+        symbols = sorted(ETF_SECTOR.keys())
+        symbols = [s for s in symbols if os.path.isdir(os.path.join(ETF_OPP_DIR, s))]
+        csv_dir = ETF_CSV_DIR
+        opp_base_dir = ETF_OPP_DIR
+        sector_lookup = ETF_SECTOR
+        log.info(f"Processing {len(symbols)} ETF symbols with {n_jobs} workers")
+    else:
+        symbols = load_sp500_symbols()
+        symbols = [s for s in symbols if os.path.isdir(os.path.join(OPP_BY_SYMBOL_DIR, s))]
+        csv_dir = None  # defaults to US_CSV_DIR
+        opp_base_dir = None  # defaults to OPP_BY_SYMBOL_DIR
+        sector_lookup = None  # defaults to TICKER_SECTOR
+        log.info(f"Processing {len(symbols)} symbols with {n_jobs} workers")
 
     # Step 3: Parallel per-symbol processing
     t_start = time.time()
     results = Parallel(n_jobs=n_jobs, verbose=10)(
         delayed(process_symbol)(symbol, mkt_regime, spy_close, etf_closes, spx_lookups,
-                                days_min, days_max)
+                                days_min, days_max, csv_dir, opp_base_dir, sector_lookup)
         for symbol in symbols
     )
 
@@ -1115,6 +1149,10 @@ if __name__ == '__main__':
                         help='Named tier (e.g. 31_60, 91_120). Overrides --days-min/max.')
     parser.add_argument('--all-tiers', action='store_true',
                         help='Build training data for all 6 tiers sequentially')
+    parser.add_argument('--etf', action='store_true',
+                        help='Build ETF training data (uses ETF CSVs and opportunity dirs)')
+    parser.add_argument('--append-etf', action='store_true',
+                        help='After building ETF data, append to the main stock parquet')
     args = parser.parse_args()
 
     if args.all_tiers:
@@ -1122,10 +1160,31 @@ if __name__ == '__main__':
             log.info(f"\n{'='*60}")
             log.info(f"BUILDING TIER: {tier_name} (daysOut {dmin}-{dmax})")
             log.info(f"{'='*60}")
-            build_training_data(n_jobs=args.njobs, days_min=dmin, days_max=dmax)
+            build_training_data(n_jobs=args.njobs, days_min=dmin, days_max=dmax,
+                                etf_mode=args.etf)
     else:
         days_min = args.days_min
         days_max = args.days_max
         if args.tier:
             days_min, days_max = TIERS[args.tier]
-        build_training_data(n_jobs=args.njobs, days_min=days_min, days_max=days_max)
+        df = build_training_data(n_jobs=args.njobs, days_min=days_min, days_max=days_max,
+                                 etf_mode=args.etf)
+
+        # Optionally append ETF data to the main stock parquet
+        if args.append_etf and args.etf:
+            tier_tag = f'{days_min}_{days_max}'
+            stock_path = get_output_path(days_min, days_max)
+            etf_path = os.path.join(FEATURE_CACHE_DIR, f'training_data_{tier_tag}_etf.parquet')
+            combined_path = os.path.join(FEATURE_CACHE_DIR, f'training_data_{tier_tag}_combined.parquet')
+            if os.path.exists(stock_path) and os.path.exists(etf_path):
+                log.info(f"Appending ETF data to stock data...")
+                stock_df = pd.read_parquet(stock_path)
+                etf_df = pd.read_parquet(etf_path)
+                log.info(f"  Stock samples: {len(stock_df):,}")
+                log.info(f"  ETF samples: {len(etf_df):,}")
+                combined = pd.concat([stock_df, etf_df], ignore_index=True)
+                combined.to_parquet(combined_path, index=False)
+                log.info(f"  Combined samples: {len(combined):,}")
+                log.info(f"  Saved to {combined_path} ({os.path.getsize(combined_path) / 1e6:.1f} MB)")
+            else:
+                log.error(f"Cannot append: stock={os.path.exists(stock_path)}, etf={os.path.exists(etf_path)}")

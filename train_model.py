@@ -112,6 +112,7 @@ FEATURE_COLS = [
 LABEL_COL = 'actual_return'
 MFE_LABEL_COL = 'mfe_return'
 ACTIVE_TARGET = 'sr'  # 'sr' or 'mfe'
+DATA_PATH_OVERRIDE = None  # set via --data-path CLI flag
 # Keep hit_target for binary evaluation metrics
 BINARY_LABEL_COL = 'hit_target'
 
@@ -354,7 +355,7 @@ def _max_drawdown(returns):
 def load_training_data():
     """Load and prepare training data with minimal memory footprint."""
     import pyarrow.parquet as pq
-    data_path = get_training_data_path(ACTIVE_TIER)
+    data_path = DATA_PATH_OVERRIDE or get_training_data_path(ACTIVE_TIER)
     log.info(f"Loading training data from {data_path} (tier: {ACTIVE_TIER})")
 
     # Peek at column names to find available features
@@ -383,6 +384,19 @@ def load_training_data():
             available.append('pat_daysOut')
         missing = [m for m in missing if m != 'pat_daysOut']
     log.info(f"Loaded {len(df):,} samples, {len(df.columns)} columns")
+    log.info(f"Using {len(available)} of {len(FEATURE_COLS)} features")
+    if missing:
+        log.warning(f"MISSING features (not in parquet): {missing}")
+
+    # Validate critical pattern-defining features are present
+    REQUIRED_FEATURES = ['pat_daysOut', 'pat_direction', 'pat_sharpe_ratio', 'pat_deepest_pass']
+    missing_required = [f for f in REQUIRED_FEATURES if f not in available]
+    if missing_required:
+        raise RuntimeError(
+            f"CRITICAL: Missing required pattern-defining features: {missing_required}. "
+            f"These features define what a pattern IS and must always be present. "
+            f"Check FEATURE_COLS and training data."
+        )
 
     # Add year column
     df['year'] = pd.to_datetime(df['date']).dt.year.astype(np.int16)
@@ -488,7 +502,7 @@ def run_optuna_tuning(df, feature_cols, n_trials=75):
             'feature_pre_filter': False,
             'max_bin': 255,
             'num_leaves': trial.suggest_int('num_leaves', 31, 255),
-            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+            'learning_rate': trial.suggest_float('learning_rate', 0.005, 0.08, log=True),
             'min_child_samples': trial.suggest_int('min_child_samples', 20, 500),
             'feature_fraction': trial.suggest_float('feature_fraction', 0.5, 1.0),
             'bagging_fraction': trial.suggest_float('bagging_fraction', 0.5, 1.0),
@@ -826,6 +840,18 @@ def train_final_model_split(df, feature_cols, params):
 
         models = [('lgb', lgb_model), ('xgb', xgb_model), ('catboost', cb_model)]
         all_models[suffix] = models
+
+        # Feature count validation
+        lgb_n = lgb_model.num_feature()
+        xgb_n = len(xgb_model.feature_names)
+        cb_n = len(cb_model.feature_names_)
+        expected_n = len(split_features)
+        log.info(f"  Feature count: expected={expected_n}, LGB={lgb_n}, XGB={xgb_n}, CB={cb_n}")
+        if not (lgb_n == xgb_n == cb_n == expected_n):
+            raise RuntimeError(
+                f"CRITICAL: Feature count mismatch in {dir_name}! expected={expected_n}, "
+                f"LGB={lgb_n}, XGB={xgb_n}, CB={cb_n}."
+            )
 
         # Predict on validation
         y_pred = predict_ensemble(models, X_val, split_features)
@@ -1184,6 +1210,27 @@ def train_final_model(df, feature_cols, params):
 
     log.info(f"Final ensemble trained in {time.time()-t0:.1f}s")
 
+    # ---- Feature validation: assert all models agree on feature count ----
+    lgb_n = lgb_model.num_feature()
+    xgb_n = len(xgb_model.feature_names)
+    cb_n = len(cb_model.feature_names_)
+    expected_n = len(feature_cols)
+    log.info(f"Feature count validation: expected={expected_n}, LGB={lgb_n}, XGB={xgb_n}, CatBoost={cb_n}")
+    if not (lgb_n == xgb_n == cb_n == expected_n):
+        raise RuntimeError(
+            f"CRITICAL: Feature count mismatch! expected={expected_n}, "
+            f"LGB={lgb_n}, XGB={xgb_n}, CatBoost={cb_n}. "
+            f"All models in an ensemble MUST use identical feature sets."
+        )
+    # Verify critical pattern-defining features are present
+    REQUIRED_FEATURES = ['pat_daysOut', 'pat_direction', 'pat_sharpe_ratio', 'pat_deepest_pass']
+    missing_required = [f for f in REQUIRED_FEATURES if f not in feature_cols]
+    if missing_required:
+        raise RuntimeError(
+            f"CRITICAL: Missing required pattern-defining features: {missing_required}. "
+            f"pat_daysOut defines the pattern and MUST be included in all models."
+        )
+
     # Feature importance (from LightGBM)
     importance = pd.DataFrame({
         'feature': feature_cols,
@@ -1266,10 +1313,12 @@ def main():
                         help='Training target: sr (actual_return) or mfe (mfe_return)')
     parser.add_argument('--save-predictions', action='store_true',
                         help='Save per-sample WF predictions for calibration tables')
+    parser.add_argument('--data-path', type=str, default=None,
+                        help='Override training data parquet path (e.g. for ETF combined data)')
     args = parser.parse_args()
 
     # Apply CLI overrides to globals
-    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER, LABEL_COL, ACTIVE_TARGET
+    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER, LABEL_COL, ACTIVE_TARGET, DATA_PATH_OVERRIDE
     if args.vix_cutoff is not None:
         VIX_CUTOFF = args.vix_cutoff if args.vix_cutoff > 0 else None
     if args.no_season_filter:
@@ -1277,6 +1326,8 @@ def main():
     if args.target == 'mfe':
         LABEL_COL = MFE_LABEL_COL
         ACTIVE_TARGET = 'mfe'
+    if args.data_path:
+        DATA_PATH_OVERRIDE = args.data_path
 
     # Handle --all-tiers: run main() for each tier
     if args.all_tiers:

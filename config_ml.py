@@ -231,6 +231,75 @@ TICKER_SECTOR = {
     'SOLV': 'Health Care', 'BLDR': 'Consumer Discretionary', 'DASH': 'Consumer Discretionary',
 }
 
+# ETF paths
+ETF_OPP_DIR = os.path.join(DATA_DIR, 'ETF', 'opp_by_symbol')
+
+# ETF ticker -> category mapping (118 ETFs with pre-2010 price data)
+# Categories use GICS sector names where applicable, plus: Broad Market, International, Fixed Income, Commodities
+ETF_SECTOR = {
+    'AAXJ': 'International', 'ACWI': 'Broad Market', 'ACWX': 'International',
+    'AGG': 'Fixed Income', 'BIL': 'Fixed Income', 'BND': 'Fixed Income',
+    'BSV': 'Fixed Income', 'DBA': 'Commodities', 'DBC': 'Commodities',
+    'DBO': 'Commodities', 'DIA': 'Broad Market', 'EEM': 'International',
+    'EFA': 'International', 'EFV': 'International', 'EMB': 'Fixed Income',
+    'EWA': 'International', 'EWC': 'International', 'EWG': 'International',
+    'EWH': 'International', 'EWI': 'International', 'EWJ': 'International',
+    'EWL': 'International', 'EWN': 'International', 'EWT': 'International',
+    'EWU': 'International', 'EWW': 'International', 'EWY': 'International',
+    'EWZ': 'International', 'EZU': 'International', 'FCG': 'Energy',
+    'FEZ': 'International', 'FXI': 'International', 'GDX': 'Materials',
+    'GDXJ': 'Materials', 'GLD': 'Commodities', 'GSG': 'Commodities',
+    'HYG': 'Fixed Income', 'IAU': 'Commodities', 'IBB': 'Health Care',
+    'ICLN': 'Energy', 'IEF': 'Fixed Income', 'IEI': 'Fixed Income',
+    'IEZ': 'Energy', 'IGIB': 'Fixed Income', 'IGSB': 'Fixed Income',
+    'IJH': 'Broad Market', 'IJR': 'Broad Market', 'ITB': 'Consumer Discretionary',
+    'ITOT': 'Broad Market', 'IVV': 'Broad Market', 'IVW': 'Broad Market',
+    'IWB': 'Broad Market', 'IWD': 'Broad Market', 'IWM': 'Broad Market',
+    'IWN': 'Broad Market', 'IWR': 'Broad Market', 'IYE': 'Energy',
+    'IYR': 'Real Estate', 'JNK': 'Fixed Income', 'KBE': 'Financials',
+    'KBWB': 'Financials', 'KRE': 'Financials', 'KWEB': 'International',
+    'LQD': 'Fixed Income', 'MCHI': 'International', 'MDY': 'Broad Market',
+    'MJ': 'Health Care', 'MUB': 'Fixed Income', 'OIH': 'Energy',
+    'PAVE': 'Industrials', 'PDBC': 'Commodities', 'PFF': 'Fixed Income',
+    'PGX': 'Fixed Income', 'PHYS': 'Commodities', 'PSCE': 'Energy',
+    'PSLV': 'Commodities', 'PXJ': 'Energy', 'QQQ': 'Broad Market',
+    'RSP': 'Broad Market', 'RWO': 'Real Estate', 'SCHB': 'Broad Market',
+    'SCHD': 'Broad Market', 'SCHE': 'International', 'SCHF': 'International',
+    'SCHH': 'Real Estate', 'SCHP': 'Fixed Income', 'SCHX': 'Broad Market',
+    'SCZ': 'International', 'SGOL': 'Commodities', 'SHV': 'Fixed Income',
+    'SHY': 'Fixed Income', 'SHYG': 'Fixed Income', 'SILJ': 'Materials',
+    'SIVR': 'Commodities', 'SJNK': 'Fixed Income', 'SLV': 'Commodities',
+    'SMH': 'Information Technology', 'SPAB': 'Fixed Income', 'SPDW': 'International',
+    'SPEM': 'International', 'SPIB': 'Fixed Income', 'SPIP': 'Fixed Income',
+    'SPLV': 'Broad Market', 'SPTI': 'Fixed Income', 'SPTL': 'Fixed Income',
+    'SPTS': 'Fixed Income', 'SPY': 'Broad Market', 'SPYD': 'Broad Market',
+    'SPYG': 'Broad Market', 'SPYV': 'Broad Market', 'SRLN': 'Fixed Income',
+    'TAN': 'Energy', 'TFI': 'Fixed Income', 'TIP': 'Fixed Income',
+    'TLT': 'Fixed Income', 'UNG': 'Commodities', 'URA': 'Energy',
+    'USHY': 'Fixed Income', 'VB': 'Broad Market', 'VBR': 'Broad Market',
+    'VCIT': 'Fixed Income', 'VCSH': 'Fixed Income', 'VEA': 'International',
+    'VEU': 'International', 'VGK': 'International', 'VGLT': 'Fixed Income',
+    'VGSH': 'Fixed Income', 'VIG': 'Broad Market', 'VNQ': 'Real Estate',
+    'VOO': 'Broad Market', 'VSS': 'International', 'VT': 'Broad Market',
+    'VTEB': 'Fixed Income', 'VTI': 'Broad Market', 'VTIP': 'Fixed Income',
+    'VTV': 'Broad Market', 'VTWO': 'Broad Market', 'VUG': 'Broad Market',
+    'VWO': 'International', 'VYM': 'Broad Market', 'WEAT': 'Commodities',
+    'XBI': 'Health Care', 'XHB': 'Consumer Discretionary', 'XLB': 'Materials',
+    'XLC': 'Communication Services', 'XLE': 'Energy', 'XLF': 'Financials',
+    'XLI': 'Industrials', 'XLK': 'Information Technology', 'XLP': 'Consumer Staples',
+    'XLRE': 'Real Estate', 'XLU': 'Utilities', 'XLV': 'Health Care',
+    'XLY': 'Consumer Discretionary', 'XME': 'Materials', 'XOP': 'Energy',
+    'XRT': 'Consumer Discretionary',
+}
+
+# For sector interaction feature: map ETF categories to their sector ETF proxy
+# Broad Market/International/Commodities use SPY as proxy, Fixed Income has no equity sector ETF
+ETF_CATEGORY_SECTOR_ETF = {
+    'Broad Market': 'SPY', 'International': 'SPY', 'Fixed Income': 'TLT',
+    'Commodities': 'SPY',
+    # Standard GICS sectors use the same SECTOR_ETF mapping
+}
+
 # Presidential Election cycle: year -> PE year (1=post-election, 2=midterm, 3=pre-election, 4=election)
 def get_pe_year(year):
     return ((year - 2001) % 4) + 1  # 2001=post-election(1), 2002=midterm(2), 2003=pre-election(3), 2004=election(4)
