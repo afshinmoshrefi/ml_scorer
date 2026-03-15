@@ -103,8 +103,10 @@ doc.add_paragraph(
     'produced a losing year at ML_70 or above.'
 )
 doc.add_paragraph(
-    'The model is ready for production deployment in both the TradeWave UI (opportunity '
-    'ranking and scoring) and automated trading (with proper risk management safeguards).'
+    'The model is ready for production deployment in the TradeWave UI (opportunity '
+    'ranking and scoring) and ready for controlled live testing in automated trading '
+    '(shadow mode or small capital with safeguards). Portfolio construction, trade '
+    'selection policy, and live monitoring remain to be built and validated.'
 )
 
 # ============================================================
@@ -115,6 +117,14 @@ doc.add_paragraph(
     'The core value of the model is opportunity filtering: separating the best seasonal '
     'patterns from the rest. The table below shows ML_70 (top 30%) performance vs. '
     'unfiltered baseline across all 8 walk-forward validation years.'
+)
+doc.add_paragraph(
+    'Important: all win rates, average returns, and Sharpe ratios in this report are '
+    'cohort statistics computed across the full universe of scored opportunities in each '
+    'validation year. They represent equal-weight averages over all qualifying patterns, '
+    'not realized portfolio returns from a specific trading strategy. Actual portfolio '
+    'performance will depend on trade selection policy, position sizing, execution, and '
+    'the number of concurrent positions held.'
 )
 
 add_table(
@@ -143,11 +153,13 @@ p.add_run(
 )
 
 p2 = doc.add_paragraph()
-r2 = p2.add_run('ML_70 WR never drops below 77.8%. ')
+r2 = p2.add_run('ML_70 cohort win rate never drops below 77.8%. ')
 r2.bold = True
 p2.add_run(
     'That is the floor across 8 diverse years including COVID (2020), a bear market '
-    '(2022), and rate hiking cycles.'
+    '(2022), and rate hiking cycles. This means that in every validation year, the '
+    'average opportunity in the model\'s top 30% was profitable at least 77.8% of the '
+    'time -- a consistent edge across regimes.'
 )
 
 # ============================================================
@@ -322,11 +334,29 @@ p.add_run(
 # ============================================================
 doc.add_heading('6. Recommendations for Automated Trading', level=1)
 
+doc.add_paragraph(
+    'The scorer validates the first stage of an automated trading pipeline: opportunity '
+    'scoring and filtering. The stages that remain unvalidated are trade selection policy '
+    '(which 3-4 trades to pick from hundreds of daily candidates), portfolio construction, '
+    'execution, and live monitoring. This section covers safeguards and preliminary strategy '
+    'parameters for controlled live testing.'
+)
+
+doc.add_heading('The Trade Selection Gap', level=2)
+doc.add_paragraph(
+    'At ML_85, roughly 200,000 opportunities per year (~800 per day) pass the scoring '
+    'threshold. The real system can only take 3-4 concurrent positions. The policy that '
+    'selects which few names survive from this candidate pool is as important as the scorer '
+    'itself. This selection policy (sorting by predicted return, sector diversification, '
+    'correlation avoidance, position timing) needs to be treated as a second model that '
+    'must be designed, tested, and validated separately.'
+)
+
 doc.add_heading('Required Safeguards', level=2)
 safeguards = [
     ('Position sizing', 'No single position > 5-10% of capital ($500-1000 on $10K). With ~78% WR and options that can go to zero, small positions are essential.'),
     ('Max concurrent positions', '3-4 as planned. ML_85+ gives ~200K opportunities/year (~800/day). Need secondary sorting (by predicted return, sector diversification) to select best 3-4.'),
-    ('Stop loss on options', '40-50% premium loss. The -100% max drawdowns in historical data get amplified in options.'),
+    ('Stop loss on options', '40-50% premium loss. Stock-level drawdowns of -20% to -40% get amplified in options and can result in total premium loss.'),
     ('Sector limits', 'Max 2 per sector. The model does not account for correlated sector risk.'),
     ('VIX circuit breaker', 'Do not score when VIX > 35. The model was trained with these samples removed and has no data for panic regimes.'),
 ]
@@ -356,11 +386,17 @@ add_table(
 )
 
 doc.add_paragraph(
-    'ML_85 delivers ~82% average win rate, ~5.2% average return per trade, Sharpe ~10. '
-    'With 3-4 concurrent positions on 10-30 day patterns, expect roughly 40-80 trades '
-    'per year. At $500 per position using options, estimated $4K-8K annual return if '
-    'historical patterns hold. Expect months with drawdowns -- the win rate is not '
-    'evenly distributed across calendar periods.'
+    'ML_85 cohort statistics show ~82% average win rate, ~5.2% average return per '
+    'trade, Sharpe ~10 across the filtered universe. These are not portfolio return '
+    'projections. Actual results will depend heavily on which 40-80 trades per year '
+    'the selection policy picks from the ~200K candidates, and on execution quality.'
+)
+doc.add_paragraph(
+    'Note on options: the validation data measures stock-level close-to-close returns '
+    'and maximum favorable excursion. Translating these to options P&L introduces '
+    'additional variables (strike selection, implied volatility, theta decay, bid-ask '
+    'spreads) that are not captured in the model. The scorer identifies favorable stock '
+    'patterns; the options strategy layered on top requires its own validation.'
 )
 
 # ============================================================
@@ -518,9 +554,19 @@ doc.add_heading('VIX Hurricane Filter', level=2)
 doc.add_paragraph(
     'When VIX exceeds 35, the scoring service refuses to score any opportunity. During '
     'market panics, seasonal patterns break down regardless of quality, direction, or '
-    'historical depth. Approximately 4.8% of training samples had VIX > 35 and were '
-    'removed from the training data entirely, so the model has no learned behavior for '
-    'panic regimes. This is a hard safety cutoff, not a model decision.'
+    'historical depth. Approximately 4.8% of training samples had VIX > 35 at the '
+    'pattern entry date and were removed from the training data entirely, so the model '
+    'has no learned behavior for panic regimes. This is a hard safety cutoff, not a '
+    'model decision.'
+)
+doc.add_paragraph(
+    'The filter applies only at the entry date. Samples where VIX was below 35 at entry '
+    'but spiked above 35 during the holding period are fully included in the training '
+    'data. The model learned from those outcomes, meaning the predicted returns and win '
+    'probabilities already account for the possibility of a mid-trade VIX spike. The '
+    'filter prevents entering new positions during a panic; it does not address what '
+    'happens to open positions if a panic starts after entry. That is a position '
+    'monitoring concern that belongs in the trade execution layer.'
 )
 
 # ============================================================
@@ -541,8 +587,11 @@ doc.add_paragraph()
 p = doc.add_paragraph()
 p.add_run('Strongest endorsement: ').bold = True
 p.add_run(
-    'The model has never had a losing year at ML_70 or above. Not once in 8 years of '
-    'true out-of-sample testing.'
+    'The ML_70 cohort (top 30% of scored opportunities, equal-weighted) has never had a '
+    'negative average return in any of the 8 walk-forward validation years. This is a '
+    'cohort statistic across hundreds of thousands of opportunities per year, not a '
+    'portfolio backtest -- but it demonstrates consistent filtering ability across '
+    'very different market regimes.'
 )
 
 doc.add_paragraph()
@@ -557,7 +606,11 @@ p.add_run(
 doc.add_paragraph()
 p = doc.add_paragraph()
 p.add_run('Production readiness: ').bold = True
-p.add_run('READY for TradeWave UI scoring. READY for automated trading with safeguards.')
+p.add_run(
+    'Ready for production deployment in TradeWave UI. Ready for controlled live testing '
+    'in automated trading (shadow mode or small capital). Full production trading requires '
+    'validated trade selection policy, portfolio construction rules, and live monitoring.'
+)
 
 # ============================================================
 # SAVE
