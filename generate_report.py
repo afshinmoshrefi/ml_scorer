@@ -72,7 +72,7 @@ for run in title.runs:
 
 subtitle = doc.add_paragraph()
 subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-r = subtitle.add_run('Production Readiness Analysis')
+r = subtitle.add_run('Deployment Readiness Analysis')
 r.font.size = Pt(18)
 r.font.color.rgb = RGBColor(0x1B, 0x3A, 0x5C)
 
@@ -98,9 +98,9 @@ doc.add_paragraph(
 doc.add_paragraph(
     'Eight years of true out-of-sample walk-forward validation (2018-2025) demonstrate '
     'that filtering to the model\'s top 30% of scored opportunities (ML_70 threshold) '
-    'consistently delivers 78-86% win rates and Sharpe ratios of 7-12, compared to '
-    'baseline win rates of 61-82% and Sharpe ratios of 2-9. The model has never '
-    'produced a losing year at ML_70 or above.'
+    'consistently delivers cohort-level win rates of 78-86% and cohort-level Sharpe ratios of 7-12, '
+    'compared to baseline win rates of 61-82% and Sharpe ratios of 2-9. The ML_70 '
+    'cohort has never had a negative average return in any validation year.'
 )
 doc.add_paragraph(
     'The model is ready for production deployment in the TradeWave UI (opportunity '
@@ -160,6 +160,42 @@ p2.add_run(
     '(2022), and rate hiking cycles. This means that in every validation year, the '
     'average opportunity in the model\'s top 30% was profitable at least 77.8% of the '
     'time -- a consistent edge across regimes.'
+)
+
+doc.add_heading('Reading the Sharpe Ratios', level=2)
+doc.add_paragraph(
+    'The Sharpe ratios in this report (7-12 at ML_70) are cohort-level statistics, '
+    'not portfolio-level Sharpe ratios. The distinction matters:'
+)
+doc.add_paragraph(
+    'Cohort Sharpe = mean(all opportunity returns in cohort) / std(all opportunity '
+    'returns in cohort). This is computed across hundreds of thousands of individual '
+    'pattern outcomes per validation year. The massive sample sizes produce a stable '
+    'mean and compress the ratio upward. This measures the quality of the scoring '
+    'filter: how well the model separates good opportunities from bad ones.'
+)
+doc.add_paragraph(
+    'Portfolio Sharpe is what a finance professional typically means by "Sharpe ratio." '
+    'It measures annualized risk-adjusted return of an actual trading account: '
+    'annualized_return / annualized_volatility. A hedge fund Sharpe of 2.0 is '
+    'considered exceptional. The cohort Sharpe of 7-12 is not comparable to this number.'
+)
+doc.add_paragraph(
+    'Why the difference is so large: a real portfolio holds 3-4 concurrent positions, '
+    'not 200,000. Individual position variance dominates. The portfolio also faces '
+    'execution costs, bid-ask spreads, timing risk, and correlation between concurrent '
+    'positions. All of these increase realized volatility and reduce the ratio.'
+)
+p3 = doc.add_paragraph()
+r3 = p3.add_run('Estimated realistic portfolio Sharpe: ')
+r3.bold = True
+p3.add_run(
+    'A well-constructed portfolio using this scorer with 3-4 concurrent positions, '
+    'sensible trade selection, and proper risk management would likely produce an '
+    'annualized Sharpe in the 1.0-3.0 range. This is still a strong result -- most '
+    'active equity strategies target 0.5-1.5. The cohort Sharpe of 7-12 should be '
+    'read as "the filter is very good at separating winners from losers," not as '
+    '"this strategy produces a Sharpe of 10."'
 )
 
 # ============================================================
@@ -575,7 +611,7 @@ doc.add_paragraph(
 doc.add_heading('9. Bottom Line', level=1)
 
 p = doc.add_paragraph()
-p.add_run('The model is a legitimate edge, not a crystal ball. ').bold = True
+p.add_run('The model provides a consistent filtering edge, not a crystal ball. ').bold = True
 p.add_run(
     'It takes seasonal patterns that already have a ~65% base win rate and reliably '
     'pushes them to ~78-82% by identifying which patterns are most likely to work in '
