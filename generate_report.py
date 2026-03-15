@@ -260,11 +260,12 @@ doc.add_paragraph(
 
 doc.add_heading('C. Max Drawdown Risk', level=2)
 doc.add_paragraph(
-    'Multiple years show -100% max drawdown even at ML_70+ thresholds. Individual '
-    'trades can lose everything. For stock trades this means significant losses; for '
-    'options this means total premium loss on some positions. Risk management '
-    '(position sizing, stop losses, sector limits) is non-negotiable for automated '
-    'trading.'
+    'Even at ML_70+ thresholds, individual trades can produce large losses. For stock '
+    'positions, the worst single-trade returns in historical validation are in the '
+    '-20% to -40% range (e.g., earnings gaps, COVID-era crashes). For options, these '
+    'same moves can result in total premium loss since options amplify underlying '
+    'moves. Risk management (position sizing, stop losses, sector limits) is '
+    'non-negotiable for automated trading.'
 )
 
 doc.add_heading('D. MFE Model Does Not Help Trade Selection', level=2)
