@@ -259,5 +259,5 @@ python train_model.py --tier 10_30 --target sr --skip-optuna --wf-only
 
 - Never use em dashes in generated text
 - Work autonomously, don't ask for confirmation on file edits or commands
-- N_JOBS=24 on the 24-core/64GB Windows dev machine
+- N_JOBS=24 on the 24-core/64GB Windows dev machine - its only relevant to the computer for training not for production rollout
 - Python 3.12 on Windows, dependencies: lightgbm, xgboost, catboost, optuna, joblib, pandas, numpy, scikit-learn, pyarrow, flask

@@ -383,9 +383,149 @@ for title_text, desc in arch_items:
     p.add_run(desc)
 
 # ============================================================
-# 8. BOTTOM LINE
+# 8. HOW THE MODEL ADAPTS TO MARKET CONDITIONS
 # ============================================================
-doc.add_heading('8. Bottom Line', level=1)
+doc.add_heading('8. How the Model Adapts to Market Conditions', level=1)
+
+doc.add_paragraph(
+    'A common question is whether the model can adapt to different market environments -- '
+    'bearish regimes, presidential election cycles, or directional trades (longs vs. shorts). '
+    'The model does not use hard-coded rules for any of these. Instead, it learns the '
+    'relationships between features and outcomes from 26 years of training data. This '
+    'section explains how that works in practice.'
+)
+
+doc.add_heading('Presidential Election Cycle Awareness', level=2)
+doc.add_paragraph(
+    'The presidential election (PE) cycle is one of the strongest known seasonal effects '
+    'in equity markets. Midterm years (PE year 2) tend to have weak summers, while '
+    'pre-election years (PE year 3) tend to be strong. The model captures this through '
+    'multiple features working together:'
+)
+
+pe_items = [
+    ('cal_pe_year',
+     'Tells the model which phase of the 4-year cycle we are in. '
+     'The model learned from training data that patterns behave differently in each phase.'),
+    ('pat_pe_match and pat_pe_deepest',
+     'These features describe how a specific pattern performs when filtered to only PE-matching years. '
+     'A pattern that is 30 years deep overall but only 4 years deep in PE-filtered history signals '
+     'that the pattern does not have a strong track record in the current cycle phase.'),
+    ('pat_pe_utilization',
+     'Measures what fraction of available PE-cycle years the pattern passed. '
+     'Low utilization means the pattern is inconsistent across election cycles.'),
+    ('mkt_spx_seasonal_wr and mkt_spx_seasonal_ret',
+     'These are computed from historical S&P 500 returns filtered by PE cycle year. '
+     'They tell the model whether the broad market itself has a seasonal tendency '
+     'to rise or fall during this calendar window in this type of election year.'),
+    ('mkt_spx_seasonal_regime',
+     'Classifies the SPX seasonal environment as bullish, neutral, or bearish based '
+     'on the PE-filtered historical win rate. A bearish regime during midterm summer '
+     'directly suppresses scores for long patterns.'),
+]
+for title_text, desc in pe_items:
+    p = doc.add_paragraph(style='List Bullet')
+    p.add_run(title_text + ': ').bold = True
+    p.add_run(desc)
+
+doc.add_heading('Example: A Long Pattern That Fails in Midterm Years', level=2)
+doc.add_paragraph(
+    'Consider a long pattern on a stock like AAPL with a start date in June, holding 20 days. '
+    'Suppose this pattern has strong overall history: 25 years deep, 85% win rate across all years, '
+    'high Sharpe ratio. On the surface, this looks like an excellent opportunity.'
+)
+doc.add_paragraph(
+    'However, when filtered to PE year 2 (midterm) years only, suppose the pattern is only 3 '
+    'years deep out of 6 possible midterm years. That is a 50% win rate in midterm years '
+    'specifically, compared to 85% overall. The model sees this divergence through several signals:'
+)
+
+example_items = [
+    'cal_pe_year = 2, telling the model this is a midterm year.',
+    'pat_pe_deepest = 3, showing shallow PE-filtered depth.',
+    'pat_pe_utilization is low (~0.50), meaning the pattern passes in only half of available midterm years.',
+    'mkt_spx_seasonal_regime is likely bearish, because SPX itself tends to decline in midterm summers.',
+    'mkt_spx_dir_alignment = 0, because the long direction conflicts with the bearish SPX seasonal regime.',
+]
+for item in example_items:
+    p = doc.add_paragraph(style='List Bullet')
+    p.add_run(item)
+
+doc.add_paragraph(
+    'The model combines all of these signals and produces a lower predicted return, lower win '
+    'probability, and lower ML score. The same pattern scored in a pre-election year (PE year 3) '
+    'with strong PE depth would receive a significantly higher score. The model does not need '
+    'an explicit "reject midterm longs" rule -- it learned this behavior from 26 years of outcomes.'
+)
+
+doc.add_heading('Long vs. Short Scoring', level=2)
+doc.add_paragraph(
+    'The model scores long and short patterns using the same 59 features and the same trained '
+    'models. It does not have separate models for longs and shorts (this was tested and did not '
+    'help -- halving the training data hurt more than direction specialization helped). Instead, '
+    'direction is captured through features:'
+)
+
+dir_items = [
+    ('pat_direction',
+     'Binary feature: 1 for long, 0 for short. The model learned different return '
+     'distributions for each direction across different market regimes.'),
+    ('mkt_spx_dir_alignment',
+     'Whether the pattern direction agrees with the SPX seasonal tendency. '
+     'A short pattern in a bearish SPX seasonal regime gets alignment = 1 (favorable). '
+     'A long pattern in the same regime gets alignment = 0 (unfavorable).'),
+    ('pat_dir_x_mkt_trend',
+     'Interaction feature that combines direction with broad market momentum. '
+     'When SPY is trending down and the pattern is short, this feature is positive '
+     '(supportive). When SPY is trending down and the pattern is long, this feature '
+     'is negative (headwind).'),
+    ('pat_dir_x_sector_trend',
+     'Same concept applied to the stock\'s sector ETF trend. A short on an energy stock '
+     'when XLE is falling gets a favorable signal.'),
+]
+for title_text, desc in dir_items:
+    p = doc.add_paragraph(style='List Bullet')
+    p.add_run(title_text + ': ').bold = True
+    p.add_run(desc)
+
+doc.add_paragraph(
+    'In practice, this means that during a bearish midterm summer, long patterns will '
+    'generally receive lower scores while short patterns with strong depth profiles will '
+    'receive higher scores. The model naturally shifts its recommendations toward the '
+    'direction that the current environment supports.'
+)
+
+doc.add_heading('Real-Time Market Regime Features', level=2)
+doc.add_paragraph(
+    'Beyond the calendar and PE cycle features, the model also uses 16 real-time market '
+    'regime features that reflect current conditions at the moment of scoring. These include '
+    'VIX level and term structure, yield curve slope, credit spreads, S&P 500 momentum and '
+    'breadth, sector rotation, and federal funds rate. When bearish conditions materialize '
+    '(rising VIX, inverting yield curve, widening credit spreads, deteriorating breadth), '
+    'these features compound the penalty on long patterns and support short patterns.'
+)
+doc.add_paragraph(
+    'This means the model adapts in two ways simultaneously: (1) calendar-based features '
+    'encode historical tendencies for this time period and election cycle, and (2) real-time '
+    'market features capture whether bearish conditions are actually present right now. A '
+    'midterm summer where the market is surprisingly strong will score better than a midterm '
+    'summer where the expected weakness has materialized, because the real-time features '
+    'override the calendar expectation.'
+)
+
+doc.add_heading('VIX Hurricane Filter', level=2)
+doc.add_paragraph(
+    'When VIX exceeds 35, the scoring service refuses to score any opportunity. During '
+    'market panics, seasonal patterns break down regardless of quality, direction, or '
+    'historical depth. Approximately 4.8% of training samples had VIX > 35 and were '
+    'removed from the training data entirely, so the model has no learned behavior for '
+    'panic regimes. This is a hard safety cutoff, not a model decision.'
+)
+
+# ============================================================
+# 9. BOTTOM LINE
+# ============================================================
+doc.add_heading('9. Bottom Line', level=1)
 
 p = doc.add_paragraph()
 p.add_run('The model is a legitimate edge, not a crystal ball. ').bold = True
