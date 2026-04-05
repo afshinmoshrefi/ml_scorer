@@ -1,11 +1,14 @@
 """
 Options Strategy Playbook V2 Backtester
 
-116 options strategy variants using synthetic options P&L model.
+140 options strategy variants using synthetic options P&L model.
 No historical options data required -- approximates P&L from stock returns.
 
+Exit rules include EA15/EA20/EA25/EA30: ATR-scaled trailing stop on stock price
+that triggers early option exit when stock drops mult*ATR from HWM.
+
 Usage:
-    python backtest_options.py                    # Run all 116 strategies
+    python backtest_options.py                    # Run all 140 strategies
     python backtest_options.py --strategies 1,2,3 # Run specific strategies
     python backtest_options.py --jobs 12          # Parallel workers
 """
@@ -208,6 +211,33 @@ STRATEGIES = [
     _s(114, "Aggressive", "CR", 85, "EM", "SH", 4, "D30", "XS", "IL"),
     _s(115, "Aggressive", "MG", 85, "EM", "SA", 4, "D30", "XS", "IL"),
     _s(116, "Aggressive", "CR", 85, "ET", "SH", 5, "D40", "XS", "IL"),
+    # ATR Stop -- WP T90 D50 XN (117-124)
+    _s(117, "ATR Stop", "WP", 90, "EA15", "SK", 3, "D50", "XN", "IL"),
+    _s(118, "ATR Stop", "WP", 90, "EA20", "SK", 3, "D50", "XN", "IL"),
+    _s(119, "ATR Stop", "WP", 90, "EA25", "SK", 3, "D50", "XN", "IL"),
+    _s(120, "ATR Stop", "WP", 90, "EA30", "SK", 3, "D50", "XN", "IL"),
+    _s(121, "ATR Stop", "WP", 90, "EA15", "SH", 3, "D50", "XN", "IL"),
+    _s(122, "ATR Stop", "WP", 90, "EA20", "SH", 3, "D50", "XN", "IL"),
+    _s(123, "ATR Stop", "WP", 90, "EA25", "SH", 3, "D50", "XN", "IL"),
+    _s(124, "ATR Stop", "WP", 90, "EA30", "SH", 3, "D50", "XN", "IL"),
+    # ATR Stop -- WP T85 D50 XN (125-132)
+    _s(125, "ATR Stop", "WP", 85, "EA15", "SK", 3, "D50", "XN", "IL"),
+    _s(126, "ATR Stop", "WP", 85, "EA20", "SK", 3, "D50", "XN", "IL"),
+    _s(127, "ATR Stop", "WP", 85, "EA25", "SK", 3, "D50", "XN", "IL"),
+    _s(128, "ATR Stop", "WP", 85, "EA30", "SK", 3, "D50", "XN", "IL"),
+    _s(129, "ATR Stop", "WP", 85, "EA15", "SH", 3, "D50", "XN", "IL"),
+    _s(130, "ATR Stop", "WP", 85, "EA20", "SH", 3, "D50", "XN", "IL"),
+    _s(131, "ATR Stop", "WP", 85, "EA25", "SH", 3, "D50", "XN", "IL"),
+    _s(132, "ATR Stop", "WP", 85, "EA30", "SH", 3, "D50", "XN", "IL"),
+    # ATR Stop -- CW T85 D50/D40 (133-140)
+    _s(133, "ATR Stop", "CW", 85, "EA15", "SK", 3, "D50", "XN", "IL"),
+    _s(134, "ATR Stop", "CW", 85, "EA20", "SK", 3, "D50", "XN", "IL"),
+    _s(135, "ATR Stop", "CW", 85, "EA25", "SK", 3, "D50", "XN", "IL"),
+    _s(136, "ATR Stop", "CW", 85, "EA30", "SK", 3, "D50", "XN", "IL"),
+    _s(137, "ATR Stop", "CW", 85, "EA15", "SH", 3, "D40", "XS", "IL"),
+    _s(138, "ATR Stop", "CW", 85, "EA20", "SH", 3, "D40", "XS", "IL"),
+    _s(139, "ATR Stop", "CW", 85, "EA25", "SH", 3, "D40", "XS", "IL"),
+    _s(140, "ATR Stop", "CW", 85, "EA30", "SH", 3, "D40", "XS", "IL"),
 ]
 
 
@@ -266,7 +296,8 @@ def build_candidates_by_date(df):
     candidates = {}
     cols = ["symbol", "sector", "holding_days", "ml_score",
             "predicted_return", "predicted_mfe", "win_probability",
-            "actual_return", "actual_mfe", "stock_volatility_20d", "year"]
+            "actual_return", "actual_mfe", "stock_volatility_20d", "year",
+            "atr_14d_pct"]
     for date_val, group in df.groupby("date"):
         candidates[date_val] = group[cols].to_dict("records")
     print(f"  {len(candidates)} unique dates with candidates")
@@ -528,6 +559,27 @@ def check_option_exit(pos, opt_pnl, stock_cum_return, trading_day_idx, exit_rule
             return ("exit", opt_pnl, "expiry")
         return ("hold", None, None)
 
+    elif exit_rule.startswith("EA"):
+        # ATR-scaled trailing stop on stock price -- exits the option when stock breaches stop
+        mult_map = {"EA15": 1.5, "EA20": 2.0, "EA25": 2.5, "EA30": 3.0}
+        mult = mult_map.get(exit_rule, 2.0)
+        atr = pos.get("atr_14d_pct", 0.02)
+        if atr <= 0:
+            atr = 0.02
+        # 50% premium stop
+        if opt_pnl <= -0.50:
+            return ("exit", -0.50, "premium_stop")
+        # ATR trailing stop on stock from stock HWM
+        atr_stop = pos["stock_hwm"] - mult * atr
+        if stock_cum_return <= atr_stop and trading_day_idx >= 2:
+            return ("exit", opt_pnl, "atr_trail")
+        # Theta-aware: exit near expiry if underwater
+        if pos.get("current_dte", 999) <= 5 and opt_pnl < 0:
+            return ("exit", opt_pnl, "theta_exit")
+        if is_last_day:
+            return ("exit", opt_pnl, "expiry")
+        return ("hold", None, None)
+
     return ("hold", None, None)
 
 
@@ -767,6 +819,7 @@ def run_strategy(strategy, candidates_by_date, prices, trading_days, kelly_r_tab
                 "trail_stop": 0.0,
                 "theta_total": 0.0,
                 "current_dte": total_dte,
+                "atr_14d_pct": c.get("atr_14d_pct", 0.02) or 0.02,
             })
 
     # Close remaining at end

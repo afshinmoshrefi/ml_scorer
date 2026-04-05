@@ -95,6 +95,8 @@ FEATURE_COLS = [
     # V2 new regime features
     'mkt_vix_regime_bucket', 'mkt_breadth_momentum',
     'mkt_fed_rate_level', 'mkt_fed_rate_direction',
+    # V3 commodity / FX regime (3)
+    'mkt_dxy_roc_20', 'mkt_cl_roc_20', 'mkt_gc_roc_20',
     # V2 SPX seasonal regime features
     'mkt_spx_seasonal_wr', 'mkt_spx_seasonal_ret',
     'mkt_spx_seasonal_regime', 'mkt_spx_dir_alignment',
@@ -367,7 +369,7 @@ def load_training_data():
         log.warning(f"Missing {len(missing)} features: {missing}")
 
     # Read ONLY needed columns from parquet
-    label_cols = ['date', 'actual_return', 'hit_target']
+    label_cols = ['date', 'actual_return', 'hit_target', 'symbol', 'direction', 'daysOut']
     if ACTIVE_TARGET == 'mfe':
         label_cols.append('mfe_return')
     keep_cols = available + label_cols
@@ -1057,6 +1059,10 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_prediction
             })
             if ACTIVE_TARGET == 'mfe':
                 pred_df['mfe_return'] = mfe_actual
+            # Cohort metadata for post-hoc calibration diagnostics
+            for _meta in ('date', 'symbol', 'daysOut', 'direction'):
+                if _meta in df.columns:
+                    pred_df[_meta] = df.loc[val_mask, _meta].values
             all_predictions.append(pred_df)
             log.info(f"  Saved {len(pred_df):,} predictions for calibration")
 
@@ -1292,6 +1298,37 @@ def train_final_model(df, feature_cols, params):
                         f"avg_ret={perf['avg_return']:.2f}%, "
                         f"sharpe={perf['sharpe']:.2f}")
 
+    # Calibration range check: warn if the final model's holdout predictions fall
+    # outside the walk-forward calibration bin bounds. Predictions outside the range
+    # are silently clamped to the last bin in production, which can produce
+    # overconfident probabilities at the extremes.
+    if len(X_val) > 0:
+        tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+        target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
+        cal_path_check = os.path.join(RESULTS_DIR, f'calibration_{("mfe" if ACTIVE_TARGET == "mfe" else "sr")}{tier_tag}.json')
+        if os.path.exists(cal_path_check):
+            with open(cal_path_check) as _f:
+                _cal = json.load(_f)
+            _bins = _cal.get('bins', [])
+            if _bins:
+                cal_pred_min = min(b['pred_min'] for b in _bins)
+                cal_pred_max = max(b['pred_max'] for b in _bins)
+                final_pred_min = float(y_pred.min())
+                final_pred_max = float(y_pred.max())
+                pct_below = float((y_pred < cal_pred_min).mean()) * 100
+                pct_above = float((y_pred > cal_pred_max).mean()) * 100
+                log.info(f"\nCalibration range check:")
+                log.info(f"  WF calibration range: [{cal_pred_min:.4f}, {cal_pred_max:.4f}]")
+                log.info(f"  Final model holdout:  [{final_pred_min:.4f}, {final_pred_max:.4f}]")
+                log.info(f"  Below cal range: {pct_below:.2f}% of holdout predictions")
+                log.info(f"  Above cal range: {pct_above:.2f}% of holdout predictions")
+                if pct_below > 5 or pct_above > 5:
+                    log.warning(
+                        f"WARNING: >{max(pct_below, pct_above):.1f}% of final model predictions "
+                        f"fall outside calibration bounds -- consider expanding WF calibration "
+                        f"range or rebuilding calibration from final-model predictions."
+                    )
+
     return models, importance
 
 
@@ -1358,6 +1395,34 @@ def main_single(args):
     log.info(f"Against-season filter: {'ON' if FILTER_AGAINST_SEASON else 'OFF'}")
     if args.split_direction:
         log.info("MODE: Split-direction (separate long/short models)")
+
+    # Assert that training FEATURE_COLS exactly matches production ml_scorer/config.py
+    # by name and order. Catches one-sided edits before any expensive data loading.
+    _prod_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     'ml_scorer', 'config.py')
+    if os.path.exists(_prod_config_path):
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location('_ml_scorer_config', _prod_config_path)
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        _prod_features = getattr(_mod, 'FEATURE_COLS', None)
+        if _prod_features is None:
+            raise RuntimeError('FEATURE_COLS not found in ml_scorer/config.py')
+        if _prod_features != FEATURE_COLS:
+            # Report first mismatch clearly
+            _diffs = [(i, t, p) for i, (t, p) in enumerate(
+                zip(FEATURE_COLS, _prod_features)) if t != p]
+            _only_train = [f for f in FEATURE_COLS if f not in _prod_features]
+            _only_prod = [f for f in _prod_features if f not in FEATURE_COLS]
+            raise RuntimeError(
+                f'FEATURE_COLS mismatch between train_model.py and ml_scorer/config.py!\n'
+                f'  Position mismatches: {_diffs[:5]}\n'
+                f'  Only in training: {_only_train}\n'
+                f'  Only in production: {_only_prod}'
+            )
+        log.info('FEATURE_COLS matches ml_scorer/config.py -- OK')
+    else:
+        log.warning(f'Could not find ml_scorer/config.py at {_prod_config_path} -- skipping FEATURE_COLS assertion')
 
     # Load data
     df, feature_cols = load_training_data()

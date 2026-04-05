@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import math
 
 import numpy as np
 
@@ -49,42 +50,53 @@ class ModelEnsemble:
         log.info(f"  {label} feature validation: OK ({expected} features)")
 
     def _load_ensemble(self, model_files, model_dir):
-        """Load LGB + XGB + CatBoost models."""
+        """Load LGB + XGB + CatBoost models.
+
+        Raises RuntimeError if any model file is missing. All three are required
+        so that a partial deployment (e.g., copy interrupted) fails loudly at
+        startup rather than silently returning zero predictions.
+        """
         models = []
 
         # LightGBM
         lgb_path = os.path.join(model_dir, model_files['lgb'])
-        if os.path.exists(lgb_path):
-            import lightgbm as lgb
-            m = lgb.Booster(model_file=lgb_path)
-            models.append(('lgb', m))
-            log.info(f"    Loaded LGB: {model_files['lgb']}")
+        if not os.path.exists(lgb_path):
+            raise RuntimeError(f"FATAL: LightGBM model file missing: {lgb_path}")
+        import lightgbm as lgb
+        m = lgb.Booster(model_file=lgb_path)
+        models.append(('lgb', m))
+        log.info(f"    Loaded LGB: {model_files['lgb']}")
 
         # XGBoost
         xgb_path = os.path.join(model_dir, model_files['xgb'])
-        if os.path.exists(xgb_path):
-            import xgboost as xgb
-            m = xgb.Booster()
-            m.load_model(xgb_path)
-            models.append(('xgb', m))
-            log.info(f"    Loaded XGB: {model_files['xgb']}")
+        if not os.path.exists(xgb_path):
+            raise RuntimeError(f"FATAL: XGBoost model file missing: {xgb_path}")
+        import xgboost as xgb
+        m = xgb.Booster()
+        m.load_model(xgb_path)
+        models.append(('xgb', m))
+        log.info(f"    Loaded XGB: {model_files['xgb']}")
 
         # CatBoost
         cb_path = os.path.join(model_dir, model_files['catboost'])
-        if os.path.exists(cb_path):
-            from catboost import CatBoostRegressor
-            m = CatBoostRegressor()
-            m.load_model(cb_path)
-            models.append(('catboost', m))
-            log.info(f"    Loaded CatBoost: {model_files['catboost']}")
+        if not os.path.exists(cb_path):
+            raise RuntimeError(f"FATAL: CatBoost model file missing: {cb_path}")
+        from catboost import CatBoostRegressor
+        m = CatBoostRegressor()
+        m.load_model(cb_path)
+        models.append(('catboost', m))
+        log.info(f"    Loaded CatBoost: {model_files['catboost']}")
 
         return models
 
     def _load_calibration(self, path):
-        """Load calibration JSON, return sorted list of bin dicts."""
+        """Load calibration JSON, return sorted list of bin dicts.
+
+        Raises RuntimeError if the file is missing -- calibration is required
+        for win_prob and ml_score to be meaningful.
+        """
         if not os.path.exists(path):
-            log.warning(f"Calibration not found: {path}")
-            return []
+            raise RuntimeError(f"FATAL: Calibration file missing: {path}")
         with open(path) as f:
             data = json.load(f)
         return sorted(data['bins'], key=lambda b: b['bin'])
@@ -107,6 +119,12 @@ class ModelEnsemble:
 
         pred_sr = self._predict_ensemble(self.models_sr, X_sr, self.feature_cols_sr)
         pred_mfe = self._predict_ensemble(self.models_mfe, X_mfe, self.feature_cols_mfe)
+
+        if not math.isfinite(pred_sr) or not math.isfinite(pred_mfe):
+            raise RuntimeError(
+                f'Model ensemble returned non-finite prediction: '
+                f'pred_sr={pred_sr}, pred_mfe={pred_mfe}'
+            )
 
         # Calibration lookup
         win_prob = self._calibrate(self.cal_sr, pred_sr, 'win_prob')

@@ -175,6 +175,24 @@ STRATEGIES = [
     _sl(63, "Deep ITM",   "WP", 90, "SK", 3),
     _sl(64, "Deep ITM",   "CW", 85, "SK", 3),
     _sl(65, "Deep ITM",   "CW", 85, "SH", 3),
+    # === ATR Stop Debit Spreads (3% tight) ===
+    _ds(66, "DS ATR Stop", "WP", 85, 0.03, "XN", "SK", 3, "EA15"),
+    _ds(67, "DS ATR Stop", "WP", 85, 0.03, "XN", "SK", 3, "EA20"),
+    _ds(68, "DS ATR Stop", "WP", 85, 0.03, "XN", "SK", 3, "EA25"),
+    _ds(69, "DS ATR Stop", "WP", 85, 0.03, "XN", "SK", 3, "EA30"),
+    _ds(70, "DS ATR Stop", "WP", 85, 0.03, "XN", "SH", 3, "EA15"),
+    _ds(71, "DS ATR Stop", "WP", 85, 0.03, "XN", "SH", 3, "EA20"),
+    _ds(72, "DS ATR Stop", "WP", 85, 0.03, "XN", "SH", 3, "EA25"),
+    _ds(73, "DS ATR Stop", "WP", 85, 0.03, "XN", "SH", 3, "EA30"),
+    # === ATR Stop Debit Spreads (5% wide) ===
+    _ds(74, "DS ATR Stop", "WP", 85, 0.05, "XN", "SK", 3, "EA15"),
+    _ds(75, "DS ATR Stop", "WP", 85, 0.05, "XN", "SK", 3, "EA20"),
+    _ds(76, "DS ATR Stop", "WP", 85, 0.05, "XN", "SK", 3, "EA25"),
+    _ds(77, "DS ATR Stop", "WP", 85, 0.05, "XN", "SK", 3, "EA30"),
+    _ds(78, "DS ATR Stop", "CW", 85, 0.03, "XN", "SK", 3, "EA15"),
+    _ds(79, "DS ATR Stop", "CW", 85, 0.03, "XN", "SK", 3, "EA20"),
+    _ds(80, "DS ATR Stop", "CW", 85, 0.03, "XN", "SK", 3, "EA25"),
+    _ds(81, "DS ATR Stop", "CW", 85, 0.03, "XN", "SK", 3, "EA30"),
 ]
 
 
@@ -288,7 +306,8 @@ def build_candidates_by_date(df, earnings_map):
     candidates = {}
     cols = ["symbol", "sector", "holding_days", "ml_score",
             "predicted_return", "predicted_mfe", "win_probability",
-            "actual_return", "actual_mfe", "stock_volatility_20d", "year"]
+            "actual_return", "actual_mfe", "stock_volatility_20d", "year",
+            "atr_14d_pct"]
     for date_val, group in df_clean.groupby("date"):
         candidates[date_val] = group[cols].to_dict("records")
     print(f"  {len(candidates)} dates with candidates")
@@ -491,13 +510,33 @@ def run_strategy(strategy, candidates_by_date, prices, trading_days, kelly_r_tab
 
             # Early exit for debit spreads: capture profit when stock passes spread width
             if stype == "DEBIT" and not should_exit:
-                if strategy.get("exit") == "EP":
+                exit_code = strategy.get("exit", "EH")
+                # Update stock HWM for ATR trailing stop
+                if stock_cr > pos.get("stock_hwm", 0.0):
+                    pos["stock_hwm"] = stock_cr
+
+                if exit_code == "EP":
                     # Aggressive: exit at 90% of spread width
                     if stock_cr >= pos["spread_width"] * 0.9:
                         should_exit = True
                         exit_reason = "profit_target"
+                elif exit_code.startswith("EA") and td_held >= 2:
+                    # ATR trailing stop from stock HWM
+                    mult_map = {"EA15": 1.5, "EA20": 2.0, "EA25": 2.5, "EA30": 3.0}
+                    mult = mult_map.get(exit_code, 2.0)
+                    atr = pos.get("atr_14d_pct", 0.02)
+                    if atr <= 0:
+                        atr = 0.02
+                    atr_stop = pos.get("stock_hwm", 0.0) - mult * atr
+                    if stock_cr <= atr_stop:
+                        should_exit = True
+                        exit_reason = "atr_trail"
+                    # Also exit at max profit
+                    elif stock_cr >= pos["spread_width"]:
+                        should_exit = True
+                        exit_reason = "max_profit"
                 else:
-                    # All debit spreads: exit at 100% of spread width (at max profit)
+                    # Hold to expiry: exit at 100% of spread width (at max profit)
                     if stock_cr >= pos["spread_width"]:
                         should_exit = True
                         exit_reason = "max_profit"
@@ -644,6 +683,8 @@ def run_strategy(strategy, candidates_by_date, prices, trading_days, kelly_r_tab
                 "win_probability": c["win_probability"],
                 "ml_score": c["ml_score"],
                 "allocation": alloc, "last_cr": 0.0,
+                "atr_14d_pct": c.get("atr_14d_pct", 0.02) or 0.02,
+                "stock_hwm": 0.0,
             }
             if stype == "DEBIT":
                 pos_data["spread_width"] = strategy["spread_width"]

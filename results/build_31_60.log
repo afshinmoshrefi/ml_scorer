@@ -1,0 +1,41 @@
+
+Building backtester input for tier 31_60
+============================================================
+Loading training data...
+  Loaded 54,414,260 rows in 2.6s
+  After VIX filter: 17,256,223 rows
+Loading WF predictions...
+  SR: 17,256,223, MFE: 17,256,223
+Joining predictions to training data...
+  Merged: 17,256,223 rows
+Adding sector mapping...
+  WARNING: 31 symbols without sector mapping
+Applying calibration...
+Computing ATR...
+  Computing 14-day ATR for 475 symbols (24 workers)...
+  ATR computed for 475/475 symbols, 4,165,926 rows
+  ATR coverage: 100.0% of rows
+
+Final dataset: 17,256,223 rows, 16 columns
+  Tier: 31_60
+  Years: [np.int32(2018), np.int32(2019), np.int32(2020), np.int32(2021), np.int32(2022), np.int32(2023), np.int32(2024), np.int32(2025)]
+  Symbols: 475
+  Sectors: 12
+  Direction: {'l': 13577559, 's': 3678664}
+  ML score range: 0.0 - 100.0
+  Predicted return range: -32.26 - 51.06
+  Win prob range: 0.480 - 0.854
+  ATR range: 0.0000 - 0.4033 (mean 0.0247)
+
+  Per-year sample counts:
+    2018:  2,186,661 total,  108,036 at ML_85+
+    2019:  2,219,489 total,    2,169 at ML_85+
+    2020:  1,827,482 total,  971,836 at ML_85+
+    2021:  2,214,481 total,  552,957 at ML_85+
+    2022:  2,190,543 total,  312,475 at ML_85+
+    2023:  2,212,148 total,  217,572 at ML_85+
+    2024:  2,218,574 total,  216,562 at ML_85+
+    2025:  2,186,845 total,  213,899 at ML_85+
+
+Saved to C:\seasonals\ml_scorer\results\backtester_input_31_60.parquet (603.9 MB)
+Total time: 32.4s

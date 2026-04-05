@@ -1,4 +1,4 @@
-# ML Pattern Scorer V2 -- Project Context for Claude Code
+# ML Pattern Scorer V3 -- Project Context for Claude Code
 
 ## CRITICAL: Read this entire file before doing any work.
 
@@ -10,9 +10,9 @@ Two-track trading strategy:
 - **Options account** ($10K): 10-30 day patterns, ATM/ITM calls/puts
 - **Stock portfolio** (larger capital): 31-90 day patterns, direct equity positions
 
-## Current Status: V2 COMPLETE -- All 3 Tiers Production-Ready (2026-03-14)
+## Current Status: V3 COMPLETE -- All 3 Tiers Production-Ready (2026-04-04)
 
-All models trained, validated, deployed to production service. ETF inference supported without retraining.
+All models retrained with 62 features (added DXY, CL, GC commodity/FX regime), deployed to production service. ETF inference supported without retraining. Memory fix applied: gzip fallback now uses targeted 5-date scan instead of full history load.
 
 ---
 
@@ -47,16 +47,20 @@ ml_scorer/                          # Root -- training pipeline
   ml_scorer/                        # PRODUCTION SERVICE (self-contained Flask package)
     __init__.py
     __main__.py                     # Entry: python -m ml_scorer
-    app.py                          # Flask: POST /score, GET /health, GET /tiers
-    config.py                       # Production config: env-var paths, TIERS dict, FEATURE_COLS
-    feature_engine.py               # Production feature computation (59 features)
+    app.py                          # Flask: POST /score, POST /select, GET /health, GET /tiers
+    config.py                       # Production config: env-var paths, TIERS dict, FEATURE_COLS (62)
+    feature_engine.py               # Production feature computation (62 features)
     scorer.py                       # ModelEnsemble: loads 3 models, averages predictions
+    daily_opp_selection.py          # /select pipeline: parquet load, pre-filter, score, rank
+    opp_to_parquet.py               # Nightly: builds ml_cache_YYYY-MM-DD.parquet per market
+    nightly.sh                      # Cron script for opp_to_parquet.py
+    warmup_cache.py                 # Warms price data cache after restart
     models/                         # 18 binary model files (3 algos x 2 targets x 3 tiers)
-      v2_lgb_20260312.txt           #   LightGBM models (~100 KB, text format)
-      v2_xgb_20260312.json          #   XGBoost models (~200 KB, JSON format)
-      v2_catboost_20260312.cbm      #   CatBoost models (~50-800 KB, binary format)
-      v2_lgb_mfe_20260312.txt       #   _mfe = MFE target model
-      v2_lgb_31_60_20260314.txt     #   _31_60 = 31-60 day tier
+      v2_lgb_20260403.txt           #   LightGBM models (~100 KB, text format)
+      v2_xgb_20260403.json          #   XGBoost models (~200 KB, JSON format)
+      v2_catboost_20260403.cbm      #   CatBoost models (~50-800 KB, binary format)
+      v2_lgb_mfe_20260403.txt       #   _mfe = MFE target model
+      v2_lgb_31_60_20260403.txt     #   _31_60 = 31-60 day tier
       ...                           #   (18 files total, naming: v2_{algo}[_{tier}][_mfe]_{date}.{ext})
     calibration/                    # 6 JSON calibration files (SR + MFE x 3 tiers)
       calibration_sr.json           #   20-bin empirical lookup: predicted_return -> win_prob, P(hit)
@@ -73,7 +77,7 @@ ml_scorer/                          # Root -- training pipeline
 
 ### Training Pipeline (build_training_data.py -> train_model.py)
 
-1. **Build training data**: For each of 475 S&P 500 symbols, replay seasonal patterns across 2000-2025 training years. Compute 59 features per sample from price data, opportunity files, and macro indicators. Output: parquet file per tier.
+1. **Build training data**: For each of 475 S&P 500 symbols, replay seasonal patterns across 2000-2025 training years. Compute 62 features per sample from price data, opportunity files, and macro indicators. Output: parquet file per tier.
 
 2. **Optuna tuning**: 75 trials on 2M subsample to find optimal LightGBM hyperparameters. Learning rate constrained to (0.005, 0.08) for larger tiers to prevent overfitting.
 
@@ -86,7 +90,8 @@ ml_scorer/                          # Root -- training pipeline
 Self-contained Flask app. Deploy by copying the `ml_scorer/` folder.
 
 **Endpoints:**
-- `POST /score` -- Score one or batch of opportunities. Input: symbol, date, daysOut, direction, tier. Output: pred_return, pred_mfe, win_prob, p_hit_return, p_hit_mfe, ml_score (0-100).
+- `POST /score` -- Score one or batch of opportunities. Input: symbol, date, daysOut, direction, tier (optional). Output: pred_return, pred_mfe, win_prob, p_hit_return, p_hit_mfe, ml_score (0-100), tier.
+- `POST /select` -- Find and score today's best opportunities from nightly parquet cache.
 - `GET /health` -- Service health check
 - `GET /tiers` -- List loaded tiers
 
@@ -103,17 +108,17 @@ python -m ml_scorer
 
 ---
 
-## The 59 Features (FEATURE_COLS)
+## The 62 Features (FEATURE_COLS)
 
-All tiers and both SR/MFE models use the same 59 features. Defined in both `ml_scorer/config.py` (production) and `train_model.py` (training). Must always stay in sync.
+All tiers and both SR/MFE models use the same 62 features. Defined in both `ml_scorer/config.py` (production) and `train_model.py` (training). Must always stay in sync.
 
 **CRITICAL: pat_daysOut MUST be included.** A pattern is defined by [start_date, ticker, days_out, history_years]. The SR model was once accidentally trained without it (58 features) and couldn't distinguish 10-day from 30-day holds. Safeguards validate feature counts at training and serving time.
 
 | Group | Count | Key Features |
 |-------|-------|-------------|
-| Pattern-Intrinsic | 22 | pat_deepest_pass, pat_sharpe_ratio, pat_direction, pat_daysOut, pat_neighbor_avg_wr, pat_sharpness, pat_consistency_std |
+| Pattern-Intrinsic | 23 | pat_deepest_pass, pat_sharpe_ratio, pat_direction, pat_daysOut, pat_neighbor_avg_wr, pat_sharpness, pat_consistency_std |
 | Technical | 5 | ta_trend_long, ta_price_vs_sma200, ta_sma50_vs_sma200, ta_rvol_20 |
-| Market Regime | 16 | mkt_vix_level, mkt_yield_curve_10y2y, mkt_credit_spread, mkt_fed_rate_level |
+| Market Regime | 19 | mkt_vix_level, mkt_yield_curve_10y2y, mkt_credit_spread, mkt_fed_rate_level, mkt_dxy_roc_20, mkt_cl_roc_20, mkt_gc_roc_20 |
 | SPX Seasonal | 4 | mkt_spx_seasonal_wr, mkt_spx_seasonal_ret, mkt_spx_seasonal_regime, mkt_spx_dir_alignment |
 | Context | 2 | ctx_pct_from_52w_high, ctx_pct_from_52w_low |
 | Calendar | 5 | cal_pe_year, cal_day_of_year, cal_month, cal_is_opex_week, cal_week_of_month |
@@ -172,7 +177,7 @@ Adding 157 ETFs to training data hurt model quality (AUC 0.627 -> 0.600, ML_70 W
 
 ## Training Data Structure
 
-Training parquets contain 66 columns: 59 features + date + actual_return + hit_target + mfe_return + daysOut + symbol + direction.
+Training parquets contain 69 columns: 62 features + date + actual_return + hit_target + mfe_return + daysOut + symbol + direction.
 
 Built from:
 - **Price CSVs**: OHLCV data back to 1981+ (US stocks), 1994+ (ETFs), various (indices)
@@ -183,7 +188,8 @@ Built from:
 ```
 {DATA_DIR}/csv/US/          # Stock price CSVs (~3500 files)
 {DATA_DIR}/csv/ETF/         # ETF CSVs (SPY, QQQ, sector ETFs, etc.)
-{DATA_DIR}/csv/INDX/        # Index CSVs (VIX, US10Y, IRX, ADVN, DECL, etc.)
+{DATA_DIR}/csv/INDX/        # Index CSVs (VIX, US10Y, IRX, ADVN, DECL, SPX, DXY, etc.)
+{DATA_DIR}/csv/COMM/        # Commodity CSVs (CL crude oil, GC gold)
 {DATA_DIR}/sp500/opp_by_symbol/  # 475 dirs, 116 gzip CSVs each
 {DATA_DIR}/ETF/opp_by_symbol/    # 157 dirs (for ETF inference)
 {DATA_DIR}/sp500_symbols.csv     # S&P 500 ticker list
@@ -247,11 +253,10 @@ python train_model.py --tier 10_30 --target sr --skip-optuna --wf-only
 
 ## Pending / Next Steps
 
-- Strategy filter implementation (ML threshold + pred_return + win_prob + sector limits)
-- Daily scoring cron (score_opportunities.py)
-- UI integration (ML score column in TradeWave)
-- Auto-trade (broker API integration)
-- Monthly retraining cadence
+- Set up nightly.sh cron on production to generate ml_cache parquets (speeds up /select and /score)
+- Auto-trade (broker API integration) -- spec in TradeWave_auto_trading/
+- Monthly retraining cadence (next: Jan 2027, add 60-day ROC for DXY/CL/GC)
+- Codex review of production service for bugs and performance (see docs/CODEX_REVIEW_V3.md)
 
 ---
 

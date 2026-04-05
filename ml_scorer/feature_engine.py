@@ -36,14 +36,16 @@ import pandas as pd
 
 try:
     from .config import (
-        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
+        DATA_DIR, ML_PARQUET_MARKETS,
+        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, COMM_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
         ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
     )
 except ImportError:
     from config import (
-        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
+        DATA_DIR, ML_PARQUET_MARKETS,
+        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, COMM_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
         ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
@@ -60,10 +62,16 @@ class FeatureEngine:
     """Computes all features for pattern opportunities (V1 + V2)."""
 
     def __init__(self):
-        # Price data cache: symbol -> DataFrame
+        # Price data cache: symbol -> DataFrame (or str path for lazy-loaded user symbols)
         self._price_cache = {}
-        # Opportunity depth profile cache: symbol -> dict
+        # Opportunity depth profile cache: symbol -> dict (gzip-backed only -- full history)
+        # Parquet-backed results are NOT stored here because they are date-scoped slices.
         self._opp_cache = {}
+        # Parquet by-symbol cache: pre-split at load time for O(1) symbol lookup
+        # Reset when date changes -- parquets are date-scoped so stale splits are invalid.
+        self._parquet_date = None           # date string of currently loaded parquets
+        self._parquet_by_symbol = {}        # symbol -> DataFrame (pre-split from parquet)
+        self._parquet_loaded_markets = set()  # market folders already loaded for this date
         # Market data (SPY, VIX, bonds, credit, sector ETFs)
         self._market_cache = {}
         # Precomputed technical indicators cache
@@ -112,9 +120,14 @@ class FeatureEngine:
             'US10Y': INDX_CSV_DIR, 'US2Y': INDX_CSV_DIR,
             'ADVN': INDX_CSV_DIR, 'DECN': INDX_CSV_DIR,
             'IRX': INDX_CSV_DIR,
+            'DXY': INDX_CSV_DIR,
+        }
+        comm_symbols = {
+            'CL': COMM_CSV_DIR,
+            'GC': COMM_CSV_DIR,
         }
 
-        for sym, directory in {**market_symbols, **indx_symbols}.items():
+        for sym, directory in {**market_symbols, **indx_symbols, **comm_symbols}.items():
             if sym not in self._price_cache:
                 path = os.path.join(directory, f'{sym}.csv')
                 if os.path.exists(path):
@@ -167,25 +180,134 @@ class FeatureEngine:
     # Group 1: Pattern-Intrinsic Features (23 V1 + 8 V2)
     # ------------------------------------------------------------------
 
-    def _load_opp_files(self, symbol):
-        """Load all opportunity combo files for a symbol.
+    def _load_opp_files(self, symbol, date_hint=None):
+        """Load opportunity combo data for a symbol.
 
         Returns dict of combo -> indexed lookup dict.
         The lookup is keyed by (date_str, daysOut, LorS) -> row dict for O(1) access.
-        """
-        if symbol in self._opp_cache:
-            return self._opp_cache[symbol]
 
+        Data source priority:
+          1. ml_cache_YYYY-MM-DD.parquet (nightly cron, fastest)
+          2. Targeted gzip scan -- streams each file, extracts only 5 target dates.
+             Far lower memory than loading full history. Cached by (symbol, date_str).
+        """
+        date_str = date_hint[:10] if isinstance(date_hint, str) else (
+            str(date_hint)[:10] if date_hint is not None else None)
+
+        # Fast path: parquet
+        if date_str is not None:
+            combos = self._load_opp_from_parquet(symbol, date_str)
+            if combos:
+                return combos
+
+        # Slow path: targeted gzip scan (5 dates only, line-by-line, no DataFrame)
+        cache_key = (symbol, date_str)
+        if cache_key in self._opp_cache:
+            return self._opp_cache[cache_key]
+        combos = self._load_opp_from_gzip(symbol, date_str)
+        self._opp_cache[cache_key] = combos
+        return combos
+
+    def _load_opp_from_parquet(self, symbol, date_hint):
+        """Load opp data from ml_cache parquet. Returns combos dict or None.
+
+        Parquets are pre-split by symbol at load time (groupby once, O(1) per-symbol
+        lookup thereafter). Resets when date changes since parquets are date-scoped.
+        Markets are loaded lazily -- stops as soon as symbol is found.
+        """
+        if isinstance(date_hint, str):
+            date_str = date_hint[:10]
+        else:
+            date_str = str(date_hint)[:10]
+
+        # Reset on date change -- pre-split dicts are tied to a specific date's parquet
+        if self._parquet_date != date_str:
+            self._parquet_date = date_str
+            self._parquet_by_symbol = {}
+            self._parquet_loaded_markets = set()
+
+        # O(1) hit: already split from a previously loaded market
+        if symbol in self._parquet_by_symbol:
+            return self._build_combos_from_df(self._parquet_by_symbol[symbol])
+
+        # Load markets lazily until symbol is found or all exhausted
+        for _rid, (_display, folder) in ML_PARQUET_MARKETS.items():
+            if folder in self._parquet_loaded_markets:
+                continue
+            path = os.path.join(DATA_DIR, folder, f'ml_cache_{date_str}.parquet')
+            if not os.path.exists(path):
+                self._parquet_loaded_markets.add(folder)
+                continue
+            try:
+                df = pd.read_parquet(path)
+                # Pre-split entire parquet by symbol once -- O(n) now, O(1) per lookup
+                by_sym = {sym: grp.reset_index(drop=True) for sym, grp in df.groupby('sym')}
+                self._parquet_by_symbol.update(by_sym)
+                self._parquet_loaded_markets.add(folder)
+                if symbol in by_sym:
+                    return self._build_combos_from_df(by_sym[symbol])
+            except Exception as e:
+                warnings.warn(f'ml_cache parquet read failed ({_display}): {e}')
+                self._parquet_loaded_markets.add(folder)
+
+        return None  # symbol not found in any market parquet
+
+    def _build_combos_from_df(self, sym_df):
+        """Build combo lookup dict from a symbol's DataFrame using vectorized array access.
+
+        Returns dict of {combo -> {(date_str, daysOut, LorS) -> {sharpe_ratio, ...}}}
+        Same structure as the gzip path. Uses numpy arrays instead of iterrows() for speed.
+        """
+        combos = {}
+        c_vals = sym_df['combo'].values
+        d_vals = [str(d)[:10] for d in sym_df['date'].values]
+        do_vals = sym_df['daysOut'].values.astype(int)
+        dr_vals = sym_df['LorS'].values
+        sr_vals = sym_df['sharpe_ratio'].values
+        ap_vals = sym_df['avg_profit'].values
+        mp_vals = sym_df['median_profit'].values
+        a2_vals = (sym_df['avg_profit2'].values if 'avg_profit2' in sym_df.columns
+                   else ap_vals)
+        for i in range(len(sym_df)):
+            c = c_vals[i]
+            if c not in combos:
+                combos[c] = {}
+            combos[c][(d_vals[i], int(do_vals[i]), dr_vals[i])] = {
+                'sharpe_ratio': float(sr_vals[i]),
+                'avg_profit': float(ap_vals[i]),
+                'median_profit': float(mp_vals[i]),
+                'avg_profit2': float(a2_vals[i]),
+            }
+        return combos
+
+    def _load_opp_from_gzip(self, symbol, date_str=None):
+        """Targeted gzip scan: stream each file, extract only 5 dates around target.
+
+        Searches sp500 first, then ETF, then INDX markets (plain and _ variants).
+        Never loads a full DataFrame -- reads line by line to minimise memory.
+        """
         opp_dir = os.path.join(OPP_BY_SYMBOL_DIR, symbol)
         if not os.path.isdir(opp_dir):
-            # Try ETF opp directory as fallback
-            etf_opp_dir = os.path.join(os.path.dirname(os.path.dirname(OPP_BY_SYMBOL_DIR)),
-                                        'ETF', 'opp_by_symbol', symbol)
-            if os.path.isdir(etf_opp_dir):
-                opp_dir = etf_opp_dir
-            else:
-                self._opp_cache[symbol] = {}
+            data_root = os.path.dirname(os.path.dirname(OPP_BY_SYMBOL_DIR))
+            found = False
+            for market_subdir in ['ETF', 'ETF_', 'INDX_COMMON', 'INDX_COMMON_']:
+                alt = os.path.join(data_root, market_subdir, 'opp_by_symbol', symbol)
+                if os.path.isdir(alt):
+                    opp_dir = alt
+                    found = True
+                    break
+            if not found:
                 return {}
+
+        # Build set of 5 target dates: target + neighbours at +-7, +-14 days
+        if date_str is not None:
+            target = pd.Timestamp(date_str)
+            search_dates = {
+                (target + timedelta(days=s)).strftime('%Y-%m-%d')
+                for s in (-14, -7, 0, 7, 14)
+            }
+        else:
+            search_dates = None  # load all dates (only used when date unknown)
 
         combos = {}
         for fname in os.listdir(opp_dir):
@@ -194,22 +316,32 @@ class FeatureEngine:
             combo_name = fname.replace('.csv.gz', '')
             path = os.path.join(opp_dir, fname)
             try:
-                df = pd.read_csv(path, compression='gzip')
-                # Build indexed lookup: (date, daysOut, LorS) -> row dict
-                lookup = {}
-                for _, row in df.iterrows():
-                    key = (str(row['date'])[:10], int(row['daysOut']), row['LorS'])
-                    lookup[key] = {
-                        'sharpe_ratio': row['sharpe_ratio'],
-                        'avg_profit': row['avg_profit'],
-                        'median_profit': row['median_profit'],
-                        'avg_profit2': row.get('avg_profit2', row['avg_profit']),
-                    }
-                combos[combo_name] = lookup
-            except Exception:
+                with gzip.open(path, 'rt') as gz:
+                    header = gz.readline().strip().split(',')
+                    date_idx = header.index('date')
+                    days_idx = header.index('daysOut')
+                    dir_idx = header.index('LorS')
+                    sr_idx = header.index('sharpe_ratio')
+                    ap_idx = header.index('avg_profit')
+                    mp_idx = header.index('median_profit')
+                    ap2_idx = header.index('avg_profit2') if 'avg_profit2' in header else ap_idx
+                    lookup = {}
+                    for line in gz:
+                        fields = line.strip().split(',')
+                        d = fields[date_idx][:10]
+                        if search_dates is not None and d not in search_dates:
+                            continue
+                        lookup[(d, int(fields[days_idx]), fields[dir_idx])] = {
+                            'sharpe_ratio': float(fields[sr_idx]),
+                            'avg_profit': float(fields[ap_idx]),
+                            'median_profit': float(fields[mp_idx]),
+                            'avg_profit2': float(fields[ap2_idx]),
+                        }
+                if lookup:
+                    combos[combo_name] = lookup
+            except Exception as e:
+                warnings.warn(f'Skipping combo file {symbol}/{fname}: {e}')
                 continue
-
-        self._opp_cache[symbol] = combos
         return combos
 
     def _parse_combo(self, combo_name):
@@ -226,9 +358,9 @@ class FeatureEngine:
         Scans all year combos to build depth profile for this unique opportunity.
         """
         features = {}
-        combos = self._load_opp_files(symbol)
         if isinstance(date, str):
             date = pd.Timestamp(date)
+        combos = self._load_opp_files(symbol, date_hint=str(date)[:10])
 
         dir_char = direction[0].lower()  # 'l' or 's'
         date_str = str(date)[:10]
@@ -376,62 +508,23 @@ class FeatureEngine:
         else:
             features['pat_consistency_std'] = 0.0
 
-        # pat_concurrent_count: how many OTHER patterns fire for this symbol on
-        # this same date.  We count all keys matching (date_str, *, *) across all
-        # combos minus 1 (self).  To keep it cheap we only scan the first combo
-        # lookup we find that matched (representative sample), then scale by
-        # number of combos.
-        concurrent = 0
-        for combo_name, lookup in combos.items():
-            for key in lookup:
-                if key[0] == date_str and key != lookup_key:
-                    concurrent += 1
-            break  # only scan first combo for speed; patterns repeat across combos
-        features['pat_concurrent_count'] = float(concurrent)
+        # pat_concurrent_count: total unique (daysOut, direction) patterns active for
+        # this symbol on this date, including self. Scan ALL combos for correctness.
+        # Matches training: date_pattern_counter counts all qualifying patterns on entry_date.
+        active_pairs = set()
+        for _combo_lookup in combos.values():
+            for _key in _combo_lookup:
+                if _key[0] == date_str:
+                    active_pairs.add((_key[1], _key[2]))  # (daysOut, direction)
+        features['pat_concurrent_count'] = float(len(active_pairs))
 
-        # Neighbor features: check if same pattern exists at shifted dates (+-7, +-14 days)
-        neighbor_wrs = {}
-        for shift_days in [-14, -7, 7, 14]:
-            shifted_date = date + pd.Timedelta(days=shift_days)
-            shifted_str = str(shifted_date)[:10]
-            shifted_key = (shifted_str, int(daysOut), dir_char)
-            # Find best non-PE winrate at shifted date
-            shifted_wr = None
-            for combo_name, lookup in combos.items():
-                row_s = lookup.get(shifted_key)
-                if row_s is not None:
-                    y1, y2, is_pe = self._parse_combo(combo_name)
-                    if not is_pe:
-                        wr = y2 / y1 if y1 > 0 else 0
-                        if shifted_wr is None or wr > shifted_wr:
-                            shifted_wr = wr
-            if shifted_wr is not None:
-                neighbor_wrs[shift_days] = shifted_wr
-
-        if neighbor_wrs:
-            neighbor_avg = float(np.mean(list(neighbor_wrs.values())))
-        else:
-            neighbor_avg = best_winrate  # fallback
-
-        features['pat_neighbor_avg_wr'] = neighbor_avg
-
-        # pat_sharpness: best_winrate / neighbor_avg_wr
-        features['pat_sharpness'] = best_winrate / neighbor_avg if neighbor_avg > 0 else 1.0
-
-        # pat_pre_slope: neighbor WR trend approaching pattern: (wr at -7d) - (wr at -14d)
-        wr_m7 = neighbor_wrs.get(-7)
-        wr_m14 = neighbor_wrs.get(-14)
-        if wr_m7 is not None and wr_m14 is not None:
-            features['pat_pre_slope'] = wr_m7 - wr_m14
-        else:
-            features['pat_pre_slope'] = np.nan
-
-        # pat_post_cliff: best_winrate minus neighbor WR at +7d
-        wr_p7 = neighbor_wrs.get(7)
-        if wr_p7 is not None:
-            features['pat_post_cliff'] = best_winrate - wr_p7
-        else:
-            features['pat_post_cliff'] = np.nan
+        # Neighborhood features: use realized price history across prior years,
+        # matching build_training_data.py:compute_neighborhood_features exactly.
+        nbr = self._compute_neighborhood_features(symbol, date, daysOut, dir_char, price_df)
+        features['pat_neighbor_avg_wr'] = nbr['pat_neighbor_avg_wr']
+        features['pat_sharpness'] = nbr['pat_sharpness']
+        features['pat_pre_slope'] = nbr['pat_pre_slope']
+        features['pat_post_cliff'] = nbr['pat_post_cliff']
 
         # pat_hit_last_year: did this pattern work last year?
         features['pat_hit_last_year'] = self._compute_hit_last_year(
@@ -440,28 +533,174 @@ class FeatureEngine:
         return features
 
     def _compute_hit_last_year(self, symbol, date, daysOut, dir_char, price_df):
-        """Check if the pattern worked last year. Return 1/0 or NaN."""
+        """Check if the pattern worked last year. Return 1/0 or NaN.
+
+        Matches build_training_data.py exactly:
+        - Feb 29 in a non-leap prior year -> NaN (training skips via ValueError, not Feb 28)
+        - Entry and exit both use FORWARD trading-day lookup (range 0-3 / 0-4 days)
+        """
         if price_df is None or price_df.empty:
             return np.nan
+        # Build prior-year base date. Feb 29 -> NaN to match training (ValueError -> continue).
         try:
-            last_year_entry = date.replace(year=date.year - 1)
+            last_year_base = pd.Timestamp(f"{date.year - 1}-{date.month:02d}-{date.day:02d}")
         except ValueError:
-            # Feb 29 in non-leap year
-            last_year_entry = date.replace(year=date.year - 1, day=28)
-
-        entry_price = self._get_price_on_date(price_df, last_year_entry)
-        if entry_price is None or entry_price == 0:
             return np.nan
 
-        exit_date = last_year_entry + pd.Timedelta(days=daysOut)
-        exit_price = self._get_price_on_date(price_df, exit_date)
-        if exit_price is None:
+        trading_days_set = set(price_df.index)
+        close_values = price_df['close']
+
+        # Forward entry lookup (matches training range(0, 4))
+        entry = None
+        for offset in range(0, 4):
+            candidate = last_year_base + pd.Timedelta(days=offset)
+            if candidate in trading_days_set:
+                entry = candidate
+                break
+        if entry is None:
             return np.nan
 
-        ret = (exit_price - entry_price) / entry_price
-        if dir_char == 's':
-            ret = -ret
-        return 1.0 if ret > 0 else 0.0
+        # Forward exit lookup (matches training range(0, 5))
+        exit_raw = entry + pd.Timedelta(days=daysOut)
+        exit_date = None
+        for offset in range(0, 5):
+            candidate = exit_raw + pd.Timedelta(days=offset)
+            if candidate in trading_days_set:
+                exit_date = candidate
+                break
+        if exit_date is None:
+            return np.nan
+
+        try:
+            p_in = close_values[entry]
+            p_out = close_values[exit_date]
+            if p_in == 0 or np.isnan(p_in) or np.isnan(p_out):
+                return np.nan
+            ret = (p_out - p_in) / p_in
+            if dir_char == 's':
+                ret = -ret
+            return 1.0 if ret > 0 else 0.0
+        except (KeyError, IndexError):
+            return np.nan
+
+    def _compute_neighborhood_features(self, symbol, date, daysOut, dir_char, price_df):
+        """
+        Compute neighborhood win-rate features from realized price history.
+
+        Mirrors compute_neighborhood_features() in build_training_data.py exactly:
+        for each temporal shift (+-7, +-14 days), replay the shifted pattern across
+        the prior 10 years and measure realized win rates from actual price data.
+
+        Returns dict with pat_neighbor_avg_wr, pat_sharpness, pat_pre_slope,
+        pat_post_cliff -- all NaN if price data is unavailable.
+        """
+        nan_result = {
+            'pat_neighbor_avg_wr': np.nan,
+            'pat_sharpness': np.nan,
+            'pat_pre_slope': np.nan,
+            'pat_post_cliff': np.nan,
+        }
+        if price_df is None or price_df.empty:
+            return nan_result
+
+        dir_mult = 1 if dir_char == 'l' else -1
+        trading_days_set = set(price_df.index)
+        close_values = price_df['close']
+
+        if isinstance(date, str):
+            date = pd.Timestamp(date)
+
+        sample_year = date.year
+        month_day = f"{date.month:02d}-{date.day:02d}"
+        prior_years = list(range(max(sample_year - 10, 2000), sample_year))
+
+        def _year_win(yr, md):
+            """Return 1.0/0.0 for realized return in year yr at month-day md, or None."""
+            try:
+                base = pd.Timestamp(f"{yr}-{md}")
+            except (ValueError, Exception):
+                return None
+            entry = None
+            for offset in range(0, 4):
+                candidate = base + pd.Timedelta(days=offset)
+                if candidate in trading_days_set:
+                    entry = candidate
+                    break
+            if entry is None:
+                return None
+            exit_raw = entry + pd.Timedelta(days=daysOut)
+            exit_date = None
+            for offset in range(0, 5):
+                candidate = exit_raw + pd.Timedelta(days=offset)
+                if candidate in trading_days_set:
+                    exit_date = candidate
+                    break
+            if exit_date is None:
+                return None
+            try:
+                p_in = close_values[entry]
+                p_out = close_values[exit_date]
+                if p_in == 0 or np.isnan(p_in) or np.isnan(p_out):
+                    return None
+                ret = (p_out - p_in) / p_in * dir_mult
+                return 1.0 if ret > 0 else 0.0
+            except (KeyError, IndexError):
+                return None
+
+        # Compute win rates at each shifted date across prior years.
+        # Build hist_base = {yr}-{month_day} first then add shift so year-crossing
+        # is handled correctly (matches Round 1 Fix 4 in build_training_data.py).
+        shifts = [(-14, 'pre2w'), (-7, 'pre1w'), (7, 'post1w'), (14, 'post2w')]
+        shifted_wrs = {}  # label -> win rate
+
+        for shift_days, label in shifts:
+            wins = []
+            for yr in prior_years:
+                try:
+                    hist_base = pd.Timestamp(f"{yr}-{month_day}")
+                    shifted = hist_base + pd.Timedelta(days=shift_days)
+                    shifted_md = f"{shifted.month:02d}-{shifted.day:02d}"
+                    shifted_yr = shifted.year
+                except (ValueError, Exception):
+                    continue
+                w = _year_win(shifted_yr, shifted_md)
+                if w is not None:
+                    wins.append(w)
+            if wins:
+                shifted_wrs[label] = float(np.mean(wins))
+
+        all_shifted_wrs = list(shifted_wrs.values())
+        pre_wrs = [shifted_wrs[l] for l in ('pre2w', 'pre1w') if l in shifted_wrs]
+        post_wrs = [shifted_wrs[l] for l in ('post1w', 'post2w') if l in shifted_wrs]
+
+        # Pattern's own prior-year win rate
+        pat_wins = []
+        for yr in prior_years:
+            w = _year_win(yr, month_day)
+            if w is not None:
+                pat_wins.append(w)
+
+        neighbor_avg = float(np.mean(all_shifted_wrs)) if all_shifted_wrs else np.nan
+        pat_wr_prior = float(np.mean(pat_wins)) if pat_wins else np.nan
+
+        sharpness = np.nan
+        if not np.isnan(pat_wr_prior) and not np.isnan(neighbor_avg) and neighbor_avg > 0:
+            sharpness = pat_wr_prior / neighbor_avg
+
+        # pat_pre_slope: pre1w_wr - pre2w_wr (same sign convention as training)
+        pre_slope = (pre_wrs[1] - pre_wrs[0]) if len(pre_wrs) == 2 else np.nan
+
+        # pat_post_cliff: pat_wr_prior - mean(post1w, post2w)
+        post_cliff = np.nan
+        if post_wrs and not np.isnan(pat_wr_prior):
+            post_cliff = pat_wr_prior - float(np.mean(post_wrs))
+
+        return {
+            'pat_neighbor_avg_wr': neighbor_avg,
+            'pat_sharpness': sharpness,
+            'pat_pre_slope': pre_slope,
+            'pat_post_cliff': post_cliff,
+        }
 
     # ------------------------------------------------------------------
     # Group 2: Technical Momentum Features (20)
@@ -836,7 +1075,7 @@ class FeatureEngine:
 
                 if len(vix_sub) >= 6:
                     vix_5d_ago = vix_sub['close'].iloc[-6]
-                    features['mkt_vix_5d_change'] = (vix - vix_5d_ago) / vix_5d_ago if vix_5d_ago != 0 else 0
+                    features['mkt_vix_5d_change'] = (vix - vix_5d_ago) / vix_5d_ago if vix_5d_ago != 0 else np.nan
                 else:
                     features['mkt_vix_5d_change'] = np.nan
 
@@ -874,12 +1113,13 @@ class FeatureEngine:
                 y2 = self._get_price_on_date(us2y_df, date)
                 if y10 is not None and y2 is not None:
                     features['mkt_yield_curve_10y2y'] = y10 - y2
-                    # Slope: 5-day change
-                    y10_5d = self._get_price_on_date(us10y_df, date - pd.Timedelta(days=7))
-                    y2_5d = self._get_price_on_date(us2y_df, date - pd.Timedelta(days=7))
-                    if y10_5d is not None and y2_5d is not None:
-                        prev_spread = y10_5d - y2_5d
-                        features['mkt_yield_curve_slope'] = (y10 - y2) - prev_spread
+                    # Slope: 5-trading-day change in spread (matches training diff(5))
+                    y10_aligned = us10y_df[us10y_df.index <= date]
+                    y2_aligned = us2y_df[us2y_df.index <= date]
+                    common_idx = y10_aligned.index.intersection(y2_aligned.index)
+                    if len(common_idx) >= 6:
+                        spread_series = y10_aligned.loc[common_idx, 'close'] - y2_aligned.loc[common_idx, 'close']
+                        features['mkt_yield_curve_slope'] = spread_series.iloc[-1] - spread_series.iloc[-6]
                     else:
                         features['mkt_yield_curve_slope'] = np.nan
                 else:
@@ -896,16 +1136,15 @@ class FeatureEngine:
         hyg_df = self._get_price_df('HYG')
         lqd_df = self._get_price_df('LQD')
         if hyg_df is not None and lqd_df is not None:
-            hyg_sub = hyg_df[hyg_df.index <= date].tail(25)
-            lqd_sub = lqd_df[lqd_df.index <= date].tail(25)
-            if len(hyg_sub) >= 1 and len(lqd_sub) >= 1:
-                hyg_price = hyg_sub['close'].iloc[-1]
-                lqd_price = lqd_sub['close'].iloc[-1]
-                spread = hyg_price / lqd_price  # ratio (higher = risk-on)
-                features['mkt_credit_spread'] = spread
-                if len(hyg_sub) >= 21 and len(lqd_sub) >= 21:
-                    spread_20d = hyg_sub['close'].iloc[0] / lqd_sub['close'].iloc[0]
-                    features['mkt_credit_spread_change_20d'] = spread - spread_20d
+            hyg_sub = hyg_df[hyg_df.index <= date]
+            lqd_sub = lqd_df[lqd_df.index <= date]
+            # Align to common trading days then form ratio series (matches training)
+            common_idx = hyg_sub.index.intersection(lqd_sub.index)
+            if len(common_idx) >= 1:
+                ratio_series = hyg_sub.loc[common_idx, 'close'] / lqd_sub.loc[common_idx, 'close']
+                features['mkt_credit_spread'] = ratio_series.iloc[-1]
+                if len(ratio_series) >= 21:
+                    features['mkt_credit_spread_change_20d'] = ratio_series.iloc[-1] - ratio_series.iloc[-21]
                 else:
                     features['mkt_credit_spread_change_20d'] = np.nan
             else:
@@ -986,21 +1225,18 @@ class FeatureEngine:
         else:
             features['mkt_vix_regime_bucket'] = np.nan
 
-        # mkt_breadth_momentum: 20-day change in adv/decl ratio
+        # mkt_breadth_momentum: 20-trading-day change in 10-day rolling adv/decl ratio
+        # Matches training: adl_ratio = adv_10d_roll / dec_10d_roll, then diff(20)
         if advn_df is not None and decn_df is not None:
-            advn_long = advn_df[advn_df.index <= date].tail(30)
-            decn_long = decn_df[decn_df.index <= date].tail(30)
-            if len(advn_long) >= 25 and len(decn_long) >= 25:
-                # Current 5-day average ratio
-                adv_now = advn_long['close'].tail(5).mean()
-                dec_now = decn_long['close'].tail(5).mean()
-                ratio_now = adv_now / dec_now if dec_now > 0 else np.nan
-                # 20 days ago 5-day average ratio
-                adv_then = advn_long['close'].iloc[:5].mean()
-                dec_then = decn_long['close'].iloc[:5].mean()
-                ratio_then = adv_then / dec_then if dec_then > 0 else np.nan
-                if ratio_now is not np.nan and ratio_then is not np.nan:
-                    features['mkt_breadth_momentum'] = ratio_now - ratio_then
+            advn_long = advn_df[advn_df.index <= date]
+            decn_long = decn_df[decn_df.index <= date]
+            common_idx = advn_long.index.intersection(decn_long.index)
+            if len(common_idx) >= 30:
+                adv_roll = advn_long.loc[common_idx, 'close'].rolling(10).mean()
+                dec_roll = decn_long.loc[common_idx, 'close'].rolling(10).mean()
+                ratio_series = adv_roll / dec_roll.replace(0, np.nan)
+                if not np.isnan(ratio_series.iloc[-1]) and not np.isnan(ratio_series.iloc[-21]):
+                    features['mkt_breadth_momentum'] = ratio_series.iloc[-1] - ratio_series.iloc[-21]
                 else:
                     features['mkt_breadth_momentum'] = np.nan
             else:
@@ -1014,10 +1250,10 @@ class FeatureEngine:
             irx_price = self._get_price_on_date(irx_df, date)
             if irx_price is not None:
                 features['mkt_fed_rate_level'] = irx_price
-                # mkt_fed_rate_direction: 60-day change in IRX
-                irx_60d = self._get_price_on_date(irx_df, date - pd.Timedelta(days=90))  # ~60 trading days
-                if irx_60d is not None:
-                    features['mkt_fed_rate_direction'] = irx_price - irx_60d
+                # mkt_fed_rate_direction: exactly 60 trading rows back (matches training diff(60))
+                irx_sub = irx_df[irx_df.index <= date]
+                if len(irx_sub) >= 61:
+                    features['mkt_fed_rate_direction'] = irx_sub['close'].iloc[-1] - irx_sub['close'].iloc[-61]
                 else:
                     features['mkt_fed_rate_direction'] = np.nan
             else:
@@ -1026,6 +1262,18 @@ class FeatureEngine:
         else:
             features['mkt_fed_rate_level'] = np.nan
             features['mkt_fed_rate_direction'] = np.nan
+
+        # V3: Commodity / FX regime -- 20-day ROC for DXY, CL, GC
+        for _sym, _feat in [('DXY', 'mkt_dxy_roc_20'), ('CL', 'mkt_cl_roc_20'), ('GC', 'mkt_gc_roc_20')]:
+            _df = self._get_price_df(_sym)
+            if _df is not None:
+                _sub = _df[_df.index <= date].tail(30)
+                if len(_sub) >= 21:
+                    features[_feat] = (_sub['close'].iloc[-1] - _sub['close'].iloc[-21]) / _sub['close'].iloc[-21]
+                else:
+                    features[_feat] = np.nan
+            else:
+                features[_feat] = np.nan
 
         return features
 
@@ -1051,7 +1299,7 @@ class FeatureEngine:
                 'sector_rs_20d', 'stock_vs_sector_20d'
             ]}
 
-        sub = df[df.index <= date].tail(260)  # ~1 year
+        sub = df[df.index <= date].tail(252)  # 252 trading days = 1 year (matches training rolling(252))
         if len(sub) < 20:
             return {f'ctx_{k}': np.nan for k in [
                 'pct_from_52w_high', 'pct_from_52w_low', 'position_in_52w_range',
@@ -1142,7 +1390,7 @@ class FeatureEngine:
             date = pd.Timestamp(date)
 
         features['cal_month'] = date.month
-        features['cal_day_of_year'] = date.timetuple().tm_yday / 365.0
+        features['cal_day_of_year'] = date.timetuple().tm_yday / (366 if date.is_leap_year else 365)
         features['cal_quarter'] = (date.month - 1) // 3 + 1
 
         # Week of month
@@ -1324,17 +1572,19 @@ class FeatureEngine:
         else:
             result['pat_dir_x_mkt_trend'] = np.nan
 
-        # pat_dir_x_sector_trend: direction_sign * sign(sector_etf_20d_return)
+        # pat_dir_x_sector_trend: direction_sign * sign(sector_etf_price > SMA200)
+        # Matches training: sector_trend = (sector_etf_close > sector_etf_sma200) ? +1 : -1
         sector = TICKER_SECTOR.get(symbol) or ETF_SECTOR.get(symbol)
         if sector:
             etf_sym = SECTOR_ETF.get(sector) or ETF_CATEGORY_SECTOR_ETF.get(sector)
             if etf_sym:
                 etf_df = self._get_price_df(etf_sym)
                 if etf_df is not None:
-                    etf_sub = etf_df[etf_df.index <= date].tail(25)
-                    if len(etf_sub) >= 21:
-                        etf_ret = (etf_sub['close'].iloc[-1] - etf_sub['close'].iloc[-21]) / etf_sub['close'].iloc[-21]
-                        sector_sign = 1.0 if etf_ret >= 0 else -1.0
+                    etf_sub = etf_df[etf_df.index <= date]
+                    if len(etf_sub) >= 200:
+                        etf_price = etf_sub['close'].iloc[-1]
+                        etf_sma200 = etf_sub['close'].tail(200).mean()
+                        sector_sign = 1.0 if etf_price > etf_sma200 else -1.0
                         result['pat_dir_x_sector_trend'] = dir_sign * sector_sign
                     else:
                         result['pat_dir_x_sector_trend'] = np.nan
@@ -1345,12 +1595,11 @@ class FeatureEngine:
         else:
             result['pat_dir_x_sector_trend'] = np.nan
 
-        # pat_depth_x_vix: pat_deepest_pass * (1 / (mkt_vix_level / 20))
-        # Normalize VIX to ~1.0 at VIX=20, so deep patterns in low VIX get boosted
+        # pat_depth_x_vix: pat_deepest_pass * (1 / vix) -- matches training formula
         deepest = features.get('pat_deepest_pass', np.nan)
         vix = features.get('mkt_vix_level', np.nan)
         if not np.isnan(deepest) and not np.isnan(vix) and vix > 0:
-            result['pat_depth_x_vix'] = deepest * (20.0 / vix)
+            result['pat_depth_x_vix'] = deepest * (1.0 / vix)
         else:
             result['pat_depth_x_vix'] = np.nan
 

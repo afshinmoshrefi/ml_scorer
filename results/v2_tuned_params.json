@@ -7,11 +7,11 @@
   "seed": 42,
   "bagging_freq": 5,
   "max_bin": 255,
-  "num_leaves": 159,
-  "learning_rate": 0.017618564532201085,
-  "min_child_samples": 190,
-  "feature_fraction": 0.5382751213474429,
-  "bagging_fraction": 0.6172061755616293,
-  "lambda_l1": 0.003278504071554549,
-  "lambda_l2": 0.002620838102165866
+  "num_leaves": 38,
+  "learning_rate": 0.051456874283854544,
+  "min_child_samples": 270,
+  "feature_fraction": 0.6634344924572453,
+  "bagging_fraction": 0.8257024674227307,
+  "lambda_l1": 0.014326964397126109,
+  "lambda_l2": 0.008650372435352754
 }

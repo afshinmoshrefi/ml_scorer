@@ -165,7 +165,8 @@ def build_candidates(df):
     candidates = {}
     cols = ["symbol", "sector", "holding_days", "ml_score",
             "predicted_return", "predicted_mfe", "win_probability",
-            "actual_return", "actual_mfe", "stock_volatility_20d", "year"]
+            "actual_return", "actual_mfe", "stock_volatility_20d", "year",
+            "atr_14d_pct"]
     for date_val, group in df.groupby("date"):
         candidates[date_val] = group[cols].to_dict("records")
     return candidates
@@ -342,6 +343,17 @@ def run_strategy(config, candidates_by_date, prices, trading_days, kelly_r_table
                 continue
 
             action, ret, reason = check_exit(pos, cr, td_held, exit_rule)
+
+            # ATR trailing stop improvement (checked after regular exit logic)
+            if action != "exit" and improvements.get("atr_stop_mult", 0) > 0:
+                mult = improvements["atr_stop_mult"]
+                atr = pos.get("atr_14d_pct", 0.02)
+                if atr <= 0:
+                    atr = 0.02
+                atr_stop = pos["hwm"] - mult * atr
+                if cr <= atr_stop and td_held >= 2:
+                    action, ret, reason = "exit", atr_stop, "atr_trail"
+
             if action == "exit":
                 slipped = ret - SLIPPAGE
                 cash += pos["allocation"] * (1 + slipped)
@@ -496,6 +508,7 @@ def run_strategy(config, candidates_by_date, prices, trading_days, kelly_r_table
                 "ml_score": c["ml_score"],
                 "allocation": alloc,
                 "hwm": 0.0, "pred_reached": False, "trail_stop": 0.0,
+                "atr_14d_pct": c.get("atr_14d_pct", 0.02) or 0.02,
             })
 
     # Close remaining
@@ -668,6 +681,25 @@ def main():
         test_id += 1
         tests.append({"id": test_id, "label": lbl, **cfg,
                        "improvements": all_imp, "tier": "10_30"})
+
+    # ATR Stop -- standalone (each multiplier on base config, EP exit replaced by ATR trail)
+    for mult, label in [(1.5, "ATR_1.5x"), (2.0, "ATR_2.0x"), (2.5, "ATR_2.5x"), (3.0, "ATR_3.0x")]:
+        test_id += 1
+        tests.append({"id": test_id, "label": label, **base,
+                       "improvements": {"atr_stop_mult": mult}, "tier": "10_30"})
+
+    # ATR Stop -- combined with all other improvements
+    for mult, label in [(1.5, "AllComb_ATR_1.5x"), (2.0, "AllComb_ATR_2.0x"),
+                        (2.5, "AllComb_ATR_2.5x"), (3.0, "AllComb_ATR_3.0x")]:
+        test_id += 1
+        tests.append({"id": test_id, "label": label, **base,
+                       "improvements": {**all_imp, "atr_stop_mult": mult}, "tier": "10_30"})
+
+    # ATR Stop -- on 31-60 tier with best standalone multipliers
+    for mult, label in [(2.0, "ATR31_60_2.0x"), (2.5, "ATR31_60_2.5x")]:
+        test_id += 1
+        tests.append({"id": test_id, "label": label, **base,
+                       "improvements": {"atr_stop_mult": mult}, "tier": "31_60"})
 
     print(f"Running {len(tests)} test configurations...")
 

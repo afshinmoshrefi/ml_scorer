@@ -1,11 +1,14 @@
 """
 Stock Strategy Playbook V2 Backtester
 
-112 strategy variants against 8-year walk-forward validation data (2018-2025).
+160 strategy variants against 8-year walk-forward validation data (2018-2025).
 10-30 Day Tier | SR + MFE Ensemble Models
 
+Exit rules: EH (hold), EM (MFE trail), ET (time+trail), EP (pct trail),
+            EA15/EA20/EA25/EA30 (ATR-scaled trailing stop from HWM)
+
 Usage:
-    python backtest_strategies.py                    # Run all 112 strategies
+    python backtest_strategies.py                    # Run all 160 strategies
     python backtest_strategies.py --strategies 1,2,3 # Run specific strategies
     python backtest_strategies.py --jobs 12          # Parallel workers (default: 12)
 """
@@ -175,6 +178,58 @@ STRATEGIES = [
     _s(110, "Aggressive", "CR", 70, "EM", "SA", 6, "C2"),
     _s(111, "Aggressive", "MG", 70, "EM", "SA", 6, "C2"),
     _s(112, "Aggressive", "MS", 70, "EM", "SA", 8, "C2"),
+    # ATR Stop -- WP T85 C2 (113-124)
+    _s(113, "ATR Stop", "WP", 85, "EA15", "SK", 3, "C2"),
+    _s(114, "ATR Stop", "WP", 85, "EA20", "SK", 3, "C2"),
+    _s(115, "ATR Stop", "WP", 85, "EA25", "SK", 3, "C2"),
+    _s(116, "ATR Stop", "WP", 85, "EA30", "SK", 3, "C2"),
+    _s(117, "ATR Stop", "WP", 85, "EA15", "SH", 3, "C2"),
+    _s(118, "ATR Stop", "WP", 85, "EA20", "SH", 3, "C2"),
+    _s(119, "ATR Stop", "WP", 85, "EA25", "SH", 3, "C2"),
+    _s(120, "ATR Stop", "WP", 85, "EA30", "SH", 3, "C2"),
+    _s(121, "ATR Stop", "WP", 85, "EA15", "SA", 3, "C2"),
+    _s(122, "ATR Stop", "WP", 85, "EA20", "SA", 3, "C2"),
+    _s(123, "ATR Stop", "WP", 85, "EA25", "SA", 3, "C2"),
+    _s(124, "ATR Stop", "WP", 85, "EA30", "SA", 3, "C2"),
+    # ATR Stop -- WP T90 C1 (125-136)
+    _s(125, "ATR Stop", "WP", 90, "EA15", "SK", 3, "C1"),
+    _s(126, "ATR Stop", "WP", 90, "EA20", "SK", 3, "C1"),
+    _s(127, "ATR Stop", "WP", 90, "EA25", "SK", 3, "C1"),
+    _s(128, "ATR Stop", "WP", 90, "EA30", "SK", 3, "C1"),
+    _s(129, "ATR Stop", "WP", 90, "EA15", "SH", 3, "C1"),
+    _s(130, "ATR Stop", "WP", 90, "EA20", "SH", 3, "C1"),
+    _s(131, "ATR Stop", "WP", 90, "EA25", "SH", 3, "C1"),
+    _s(132, "ATR Stop", "WP", 90, "EA30", "SH", 3, "C1"),
+    _s(133, "ATR Stop", "WP", 90, "EA15", "SA", 3, "C1"),
+    _s(134, "ATR Stop", "WP", 90, "EA20", "SA", 3, "C1"),
+    _s(135, "ATR Stop", "WP", 90, "EA25", "SA", 3, "C1"),
+    _s(136, "ATR Stop", "WP", 90, "EA30", "SA", 3, "C1"),
+    # ATR Stop -- CW T85 C2 (137-148)
+    _s(137, "ATR Stop", "CW", 85, "EA15", "SK", 3, "C2"),
+    _s(138, "ATR Stop", "CW", 85, "EA20", "SK", 3, "C2"),
+    _s(139, "ATR Stop", "CW", 85, "EA25", "SK", 3, "C2"),
+    _s(140, "ATR Stop", "CW", 85, "EA30", "SK", 3, "C2"),
+    _s(141, "ATR Stop", "CW", 85, "EA15", "SH", 3, "C2"),
+    _s(142, "ATR Stop", "CW", 85, "EA20", "SH", 3, "C2"),
+    _s(143, "ATR Stop", "CW", 85, "EA25", "SH", 3, "C2"),
+    _s(144, "ATR Stop", "CW", 85, "EA30", "SH", 3, "C2"),
+    _s(145, "ATR Stop", "CW", 85, "EA15", "SA", 3, "C2"),
+    _s(146, "ATR Stop", "CW", 85, "EA20", "SA", 3, "C2"),
+    _s(147, "ATR Stop", "CW", 85, "EA25", "SA", 3, "C2"),
+    _s(148, "ATR Stop", "CW", 85, "EA30", "SA", 3, "C2"),
+    # ATR Stop -- CW T90 C1 (149-160)
+    _s(149, "ATR Stop", "CW", 90, "EA15", "SK", 3, "C1"),
+    _s(150, "ATR Stop", "CW", 90, "EA20", "SK", 3, "C1"),
+    _s(151, "ATR Stop", "CW", 90, "EA25", "SK", 3, "C1"),
+    _s(152, "ATR Stop", "CW", 90, "EA30", "SK", 3, "C1"),
+    _s(153, "ATR Stop", "CW", 90, "EA15", "SH", 3, "C1"),
+    _s(154, "ATR Stop", "CW", 90, "EA20", "SH", 3, "C1"),
+    _s(155, "ATR Stop", "CW", 90, "EA25", "SH", 3, "C1"),
+    _s(156, "ATR Stop", "CW", 90, "EA30", "SH", 3, "C1"),
+    _s(157, "ATR Stop", "CW", 90, "EA15", "SA", 3, "C1"),
+    _s(158, "ATR Stop", "CW", 90, "EA20", "SA", 3, "C1"),
+    _s(159, "ATR Stop", "CW", 90, "EA25", "SA", 3, "C1"),
+    _s(160, "ATR Stop", "CW", 90, "EA30", "SA", 3, "C1"),
 ]
 
 
@@ -329,7 +384,8 @@ def build_candidates_by_date(df, earnings_map):
     candidates = {}
     cols = ["symbol", "sector", "holding_days", "ml_score",
             "predicted_return", "predicted_mfe", "win_probability",
-            "actual_return", "actual_mfe", "stock_volatility_20d", "year"]
+            "actual_return", "actual_mfe", "stock_volatility_20d", "year",
+            "atr_14d_pct"]
     for date_val, group in df_clean.groupby("date"):
         candidates[date_val] = group[cols].to_dict("records")
     print(f"  {len(candidates)} dates with candidates")
@@ -584,6 +640,20 @@ def check_exit(pos, cum_return, trading_day_idx, exit_rule):
             return ("exit", cum_return, "hold_expiry")
         return ("hold", None, None)
 
+    elif exit_rule.startswith("EA"):
+        mult_map = {"EA15": 1.5, "EA20": 2.0, "EA25": 2.5, "EA30": 3.0}
+        mult = mult_map.get(exit_rule, 2.0)
+        atr = pos.get("atr_14d_pct", 0.02)
+        if atr <= 0:
+            atr = 0.02
+        atr_stop = pos["hwm"] - mult * atr
+        if cum_return <= atr_stop and trading_day_idx >= 2:
+            return ("exit", atr_stop, "atr_trail")
+
+        if is_last_day:
+            return ("exit", cum_return, "hold_expiry")
+        return ("hold", None, None)
+
     return ("hold", None, None)
 
 
@@ -792,6 +862,7 @@ def run_strategy(strategy, candidates_by_date, prices, trading_days,
                 "hwm": 0.0,
                 "pred_reached": False,
                 "trail_stop": 0.0,
+                "atr_14d_pct": c.get("atr_14d_pct", 0.02) or 0.02,
             })
 
     # Close any remaining open positions at end of simulation

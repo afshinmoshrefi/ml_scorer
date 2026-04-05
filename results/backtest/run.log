@@ -1,0 +1,78 @@
+[Parallel(n_jobs=24)]: Using backend LokyBackend with 24 concurrent workers.
+[Parallel(n_jobs=24)]: Done   2 tasks      | elapsed:   24.6s
+[Parallel(n_jobs=24)]: Done  13 tasks      | elapsed:  2.9min
+[Parallel(n_jobs=24)]: Done  24 tasks      | elapsed:  5.1min
+[Parallel(n_jobs=24)]: Done  37 tasks      | elapsed:  7.0min
+[Parallel(n_jobs=24)]: Done  50 tasks      | elapsed:  8.9min
+[Parallel(n_jobs=24)]: Done  65 tasks      | elapsed: 11.4min
+[Parallel(n_jobs=24)]: Done  80 tasks      | elapsed: 13.1min
+[Parallel(n_jobs=24)]: Done  97 tasks      | elapsed: 15.1min
+[Parallel(n_jobs=24)]: Done 130 out of 160 | elapsed: 18.9min remaining:  4.4min
+[Parallel(n_jobs=24)]: Done 147 out of 160 | elapsed: 20.6min remaining:  1.8min
+[Parallel(n_jobs=24)]: Done 160 out of 160 | elapsed: 21.8min finished
+Running 160 strategies with 24 workers
+
+Loading backtester input from C:\seasonals\ml_scorer\results\backtester_input_10_30.parquet...
+  8,039,032 long opportunities across 8 years
+Loading price data for 475 symbols...
+  Loaded prices for 475 symbols
+  2011 trading days from 2018-01-02 to 2025-12-31
+  Loaded 18278 earnings dates for 475 symbols
+  Building candidates-by-date index (with earnings filter)...
+    Checking earnings overlap per symbol...
+    1,953,669 of 8,039,032 filtered by earnings (24.3%)
+  1949 dates with candidates
+Pre-computing Kelly R table...
+
+Data loaded in 22.5s
+Kelly R samples: {(70, 2018): 1.1902893926632292, (70, 2019): 0.9024274156170768, (70, 2020): 0.9156010235167408, (70, 2021): 1.1048514558054257}
+
+Running backtests...
+
+All backtests completed in 1310.9s
+
+Trade log: C:\seasonals\ml_scorer\results\backtest\trades.csv (102,358 trades)
+Equity curves: C:\seasonals\ml_scorer\results\backtest\equity.csv (321,760 records)
+Strategy summary: C:\seasonals\ml_scorer\results\backtest\summary.csv
+
+====================================================================================================
+TOP 20 STRATEGIES BY WEIGHTED SCORE
+====================================================================================================
+ strategy_id       category ranking  threshold exit sizing  max_positions concentration total_return annualized_return max_drawdown sharpe_ratio win_rate  total_trades  years_profitable weighted_score
+          24   Cash Machine      CW         85   EP     SA              4            C2  33105989.0%            389.8%        19.2%         3.70    58.5%          1202                 8          0.946
+          21   Cash Machine      WP         85   EP     SK              3            C2      5156.7%             64.1%         6.7%         3.66    55.9%           780                 8          0.845
+          23   Cash Machine      WP         90   EP     SK              3            C1      4455.1%             61.2%         7.0%         3.61    56.2%           721                 8          0.837
+          22   Cash Machine      WP         85   EP     SH              3            C2     74690.5%            128.7%        10.7%         3.64    55.9%           780                 8          0.825
+          35         Growth      CR         80   ET     SH              5            C2    767749.6%            206.0%        20.3%         3.61    73.2%          1065                 8          0.784
+         149       ATR Stop      CW         90 EA15     SK              3            C1     12252.7%             82.6%        11.0%         3.24    63.3%           490                 8          0.778
+          18   Cash Machine      CW         85   ET     SK              4            C2    141803.9%            147.7%        18.1%         3.37    74.6%           832                 8          0.763
+          95     Kelly Dive      CW         85   ET     SK              4            C2    141803.9%            147.7%        18.1%         3.37    74.6%           832                 8          0.763
+         112     Aggressive      MS         70   EM     SA              8            C2    158977.0%            151.3%        16.1%         3.24    82.0%          1313                 8          0.757
+         114       ATR Stop      WP         85 EA20     SK              3            C2      2889.0%             52.9%         9.2%         2.92    67.2%           491                 8          0.749
+           8   Cash Machine      WP         90   ET     SK              3            C1      2598.9%             51.0%        12.0%         2.92    69.4%           621                 8          0.737
+         137       ATR Stop      CW         85 EA15     SK              3            C2     24082.0%             98.6%        10.5%         2.84    60.7%           535                 8          0.734
+         138       ATR Stop      CW         85 EA20     SK              3            C2     20338.5%             94.4%        12.2%         2.88    66.2%           464                 8          0.732
+          50         Growth      CR         80   EM     SA              6            C2    356326.3%            178.0%        17.0%         3.04    83.9%           966                 8          0.731
+         110     Aggressive      CR         70   EM     SA              6            C2    278443.6%            169.5%        18.3%         3.08    82.6%           985                 8          0.730
+         125       ATR Stop      WP         90 EA15     SK              3            C1      2251.3%             48.4%         9.2%         2.75    63.1%           523                 8          0.729
+         126       ATR Stop      WP         90 EA20     SK              3            C1      1839.2%             44.9%         8.9%         2.73    64.4%           458                 8          0.729
+          85 Position Count      CW         85   ET     SA              8            C2    136705.6%            146.6%        18.7%         3.05    72.9%          1644                 8          0.723
+          34         Growth      CR         80   EM     SH              5            C2    660599.2%            200.3%        22.4%         3.16    83.6%           810                 8          0.723
+          41         Growth      PR         90   EM     SH              3            C1    240223.4%            164.6%        18.6%         3.02    81.5%           433                 8          0.721
+
+====================================================================================================
+YEAR-BY-YEAR RETURNS (TOP 10 STRATEGIES)
+====================================================================================================
+ strategy_id     category year_2018 year_2019 year_2020 year_2021 year_2022 year_2023 year_2024 year_2025
+          24 Cash Machine    185.2%     82.7%    982.6%    191.7%    323.4%    693.2%    792.4%    548.1%
+          21 Cash Machine     51.9%     44.9%     48.2%     78.7%    117.4%     88.0%     31.6%     66.8%
+          23 Cash Machine     46.0%     40.9%     63.4%     82.5%     94.6%     74.8%     31.8%     62.8%
+          22 Cash Machine    101.5%    100.1%     97.4%    163.3%    254.0%    178.4%     56.0%    130.7%
+          35       Growth    133.7%     90.0%    199.9%    165.8%    140.2%    431.8%    329.5%    264.2%
+         149     ATR Stop     41.8%     30.9%    111.1%     69.2%     43.2%    122.3%    162.8%    113.7%
+          18 Cash Machine     89.4%     49.7%    140.4%    113.9%     75.8%    266.0%    299.5%    264.2%
+          95   Kelly Dive     89.4%     49.7%    140.4%    113.9%     75.8%    266.0%    299.5%    264.2%
+         112   Aggressive     65.8%     87.2%    184.0%    141.1%     85.2%    199.9%    258.4%    268.0%
+         114     ATR Stop     41.9%     49.3%     38.3%     90.9%     57.8%     78.7%     29.0%     47.4%
+
+Total runtime: 1336.2s

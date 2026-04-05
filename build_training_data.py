@@ -351,6 +351,16 @@ def compute_market_regime_series():
         mkt['mkt_fed_rate_level'] = np.nan
         mkt['mkt_fed_rate_direction'] = np.nan
 
+    # V3: Commodity / FX regime -- 20-day ROC for DXY, CL, GC
+    dxy = load_csv('INDX', 'DXY')
+    mkt['mkt_dxy_roc_20'] = dxy['close'].reindex(mkt.index, method='ffill').pct_change(20) if dxy is not None else np.nan
+
+    cl = load_csv('COMM', 'CL')
+    mkt['mkt_cl_roc_20'] = cl['close'].reindex(mkt.index, method='ffill').pct_change(20) if cl is not None else np.nan
+
+    gc = load_csv('COMM', 'GC')
+    mkt['mkt_gc_roc_20'] = gc['close'].reindex(mkt.index, method='ffill').pct_change(20) if gc is not None else np.nan
+
     return mkt
 
 
@@ -401,6 +411,17 @@ def load_opp_patterns(symbol, days_min, days_max, opp_base_dir=None):
     patterns = set()
     combo_data = {}
 
+    # Expected column positions in the opp CSV (fast positional parse).
+    # If the upstream format changes, the header check below will catch it.
+    _EXPECTED_HEADER = 'LorS,date,daysOut,sym,sharpe_ratio,avg_profit,median_profit'
+    _COL_LORS = 0
+    _COL_DATE = 1
+    _COL_DAYS_OUT = 2
+    _COL_SHARPE = 4
+    _COL_AVG_PROFIT = 5
+    _COL_MEDIAN_PROFIT = 6
+    _COL_AVG_PROFIT2 = 8  # optional, added later
+
     for fname in os.listdir(opp_dir):
         if not fname.endswith('.csv.gz'):
             continue
@@ -409,25 +430,34 @@ def load_opp_patterns(symbol, days_min, days_max, opp_base_dir=None):
         lookup = {}
         try:
             with gzip.open(path, 'rt') as fh:
-                next(fh)  # skip header: LorS,date,daysOut,sym,sharpe_ratio,avg_profit,median_profit,sharpe_ratio2,avg_profit2
+                header = next(fh).rstrip()
+                # Validate header matches expected column layout before positional parsing
+                if not header.startswith(_EXPECTED_HEADER):
+                    log.warning(
+                        f'Schema mismatch in {symbol}/{fname}: '
+                        f'expected header starting with "{_EXPECTED_HEADER}", '
+                        f'got "{header[:80]}" -- skipping combo'
+                    )
+                    continue
                 for line in fh:
                     parts = line.rstrip().split(',')
-                    d = int(parts[2])
+                    d = int(parts[_COL_DAYS_OUT])
                     if d < days_min or d > days_max:
                         continue
-                    direction = parts[0]
-                    date_str = parts[1]
+                    direction = parts[_COL_LORS]
+                    date_str = parts[_COL_DATE]
                     month_day = date_str[5:]  # MM-DD
 
                     patterns.add((month_day, d, direction))
-                    avg_p = float(parts[5])
+                    avg_p = float(parts[_COL_AVG_PROFIT])
                     lookup[(date_str, d, direction)] = {
-                        'sharpe_ratio': float(parts[4]),
+                        'sharpe_ratio': float(parts[_COL_SHARPE]),
                         'avg_profit': avg_p,
-                        'median_profit': float(parts[6]),
-                        'avg_profit2': float(parts[8]) if len(parts) > 8 and parts[8] else avg_p,
+                        'median_profit': float(parts[_COL_MEDIAN_PROFIT]),
+                        'avg_profit2': float(parts[_COL_AVG_PROFIT2]) if len(parts) > _COL_AVG_PROFIT2 and parts[_COL_AVG_PROFIT2] else avg_p,
                     }
-        except Exception:
+        except Exception as e:
+            log.warning(f'Skipping combo file {symbol}/{fname}: {e}')
             continue
         if lookup:
             combo_data[combo_name] = lookup
@@ -553,8 +583,11 @@ def compute_neighborhood_features(close_values, trading_days_set, price_index,
         wins = []
         for yr in prior_years:
             try:
-                shifted_md = entry_date + pd.Timedelta(days=shift_days)
-                shifted_entry = pd.Timestamp(f"{yr}-{shifted_md.month:02d}-{shifted_md.day:02d}")
+                # Build historical base date first, then shift so that year-crossing
+                # is handled correctly (e.g. Dec-28 + 7 days -> Jan-04 of yr+1,
+                # not Jan-04 of yr as the old sample-year-rewrite approach did).
+                hist_base = pd.Timestamp(f"{yr}-{month_day}")
+                shifted_entry = hist_base + pd.Timedelta(days=shift_days)
             except (ValueError, pd.errors.OutOfBoundsDatetime):
                 continue
 
@@ -713,6 +746,18 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
     if not patterns:
         return None
 
+    # Derive opp file year dynamically from actual combo_data keys so this code
+    # survives the annual opp-file year rollover (2026 -> 2027 -> ...).
+    opp_year = None
+    for _lookup in combo_data.values():
+        for _key in _lookup:
+            opp_year = _key[0][:4]  # 'YYYY' from 'YYYY-MM-DD'
+            break
+        if opp_year is not None:
+            break
+    if opp_year is None:
+        return None
+
     # Precompute technical indicators (vectorized)
     ta_series = compute_all_ta_series(price_df)
 
@@ -741,8 +786,8 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
     date_pattern_counter = Counter()
 
     for month_day, daysOut, direction in patterns:
-        date_2026 = f"2026-{month_day}"
-        pat_feats = compute_pattern_features_fast(combo_data, date_2026, daysOut, direction, data_years)
+        opp_date = f"{opp_year}-{month_day}"
+        pat_feats = compute_pattern_features_fast(combo_data, opp_date, daysOut, direction, data_years)
         if pat_feats is None:
             continue
 
@@ -821,8 +866,10 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
             best_price = window.min()
             mfe_returns[i] = (entry_prices[i] - best_price) / entry_prices[i] * 100
 
-    # Filter valid
-    valid = ~np.isnan(actual_returns) & ~np.isnan(entry_prices) & (entry_prices != 0)
+    # Filter valid: exclude NaN actual_return AND NaN mfe_return so both SR and
+    # MFE training targets are always non-null for every surviving row.
+    valid = (~np.isnan(actual_returns) & ~np.isnan(entry_prices) & (entry_prices != 0)
+             & ~np.isnan(mfe_returns))
     valid_idx = np.where(valid)[0]
     if len(valid_idx) == 0:
         return None
@@ -1010,7 +1057,7 @@ def process_symbol(symbol, mkt_regime, spy_close, etf_closes, spx_lookups=None,
     # Calendar features (vectorized) - V2: dropped cal_quarter, cal_month_position
     dates = pd.to_datetime(merged['date'])
     merged['cal_month'] = dates.dt.month
-    merged['cal_day_of_year'] = dates.dt.dayofyear / 365.0
+    merged['cal_day_of_year'] = dates.dt.dayofyear / (365 + dates.dt.is_leap_year.astype(int))
     merged['cal_week_of_month'] = (dates.dt.day - 1) // 7 + 1
     merged['cal_pe_year'] = dates.dt.year.map(get_pe_year)
 

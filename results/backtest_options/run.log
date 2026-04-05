@@ -1,0 +1,76 @@
+[Parallel(n_jobs=24)]: Using backend LokyBackend with 24 concurrent workers.
+[Parallel(n_jobs=24)]: Done   2 tasks      | elapsed:   52.9s
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\joblib\externals\loky\process_executor.py:752: UserWarning: A worker stopped while some jobs were given to the executor. This can be caused by a too short worker timeout or by a memory leak.
+  warnings.warn(
+[Parallel(n_jobs=24)]: Done  13 tasks      | elapsed:  5.6min
+[Parallel(n_jobs=24)]: Done  24 tasks      | elapsed:  8.2min
+[Parallel(n_jobs=24)]: Done  37 tasks      | elapsed: 11.0min
+[Parallel(n_jobs=24)]: Done  50 tasks      | elapsed: 13.3min
+[Parallel(n_jobs=24)]: Done  65 tasks      | elapsed: 15.8min
+[Parallel(n_jobs=24)]: Done  80 tasks      | elapsed: 18.0min
+[Parallel(n_jobs=24)]: Done 108 out of 140 | elapsed: 21.2min remaining:  6.3min
+[Parallel(n_jobs=24)]: Done 123 out of 140 | elapsed: 22.9min remaining:  3.2min
+[Parallel(n_jobs=24)]: Done 138 out of 140 | elapsed: 24.6min remaining:   21.3s
+[Parallel(n_jobs=24)]: Done 140 out of 140 | elapsed: 24.8min finished
+Running 140 options strategies with 24 workers
+
+Loading backtester input from C:\seasonals\ml_scorer\results\backtester_input_10_30.parquet...
+  8,039,032 long opportunities across 8 years
+Loading price data for 475 symbols...
+  Loaded prices for 475 symbols
+  2011 trading days from 2018-01-02 to 2025-12-31
+  Building candidates-by-date index...
+  1949 unique dates with candidates
+Pre-computing Kelly R table...
+
+Data loaded in 24.9s
+
+Running backtests...
+
+All backtests completed in 1486.9s
+
+Trade log: C:\seasonals\ml_scorer\results\backtest_options\trades.csv (67,890 trades)
+Equity curves: C:\seasonals\ml_scorer\results\backtest_options\equity.csv (281,540 records)
+Strategy summary: C:\seasonals\ml_scorer\results\backtest_options\summary.csv
+
+========================================================================================================================
+TOP 20 OPTIONS STRATEGIES BY WEIGHTED SCORE
+========================================================================================================================
+ strategy_id     category ranking  threshold exit sizing  max_positions strike expiry iv_filter total_return annualized_return max_drawdown sharpe_ratio win_rate  total_trades  years_profitable pct_total_loss avg_theta_cost weighted_score
+          71 Strike Study      WP         85   EC     SH              3    D60     X2        IL    141677.6%            147.7%        50.6%         1.69    67.4%           522                 8           0.0%          4.62%          0.825
+          19 Cash Machine      CW         90   EC     SK              3    D60     XN        IL   1139252.1%            221.4%        61.5%         1.66    64.5%           490                 6           0.0%          5.66%          0.819
+          79    IV Filter      WP         85   EC     SH              3    D50     XN        IN     11939.9%             82.0%        42.4%         1.41    66.4%           509                 8           0.0%          9.67%          0.813
+           4 Cash Machine      WP         90   EC     SK              3    D60     XN        IL     29454.7%            103.6%        44.8%         1.37    63.6%           511                 8           0.0%          6.49%          0.804
+          75 Strike Study      WP         90   EC     SH              3    D60     XN        IL     29454.7%            103.6%        44.8%         1.37    63.6%           511                 8           0.0%          6.49%          0.804
+           5 Cash Machine      WP         90   EC     SH              3    D60     XN        IL     29454.7%            103.6%        44.8%         1.37    63.6%           511                 8           0.0%          6.49%          0.804
+          81    IV Filter      WP         85   EC     SH              3    D50     XN        IH      9244.6%             76.3%        49.3%         1.53    65.5%           533                 8           0.0%          9.41%          0.799
+          67 Strike Study      WP         85   EC     SH              3    D60     XB        IL     21984.0%             96.3%        48.8%         1.36    64.0%           533                 8           0.0%          7.33%          0.790
+          20 Cash Machine      CW         90   EC     SH              3    D60     XB        IL    887059.6%            211.5%        61.8%         1.67    64.0%           492                 6           0.0%          6.31%          0.786
+          63 Strike Study      WP         85   EC     SH              3    D60     XN        IL     25422.2%             99.9%        52.4%         1.38    64.2%           537                 8           0.0%          6.54%          0.780
+          12 Cash Machine      WP         85   EC     SK              3    D60     XN        IL     25422.2%             99.9%        52.4%         1.38    64.2%           537                 8           0.0%          6.54%          0.780
+          13 Cash Machine      WP         85   EC     SH              3    D60     XN        IL     25422.2%             99.9%        52.4%         1.38    64.2%           537                 8           0.0%          6.54%          0.780
+          26 Cash Machine      WP         90   EC     SK              3    D50     XN        IH     14577.9%             86.6%        58.3%         1.57    64.3%           490                 8           0.0%          9.61%          0.774
+          87    IV Filter      WP         90   EC     SH              3    D50     XN        IH     14577.9%             86.6%        58.3%         1.57    64.3%           490                 8           0.0%          9.61%          0.774
+          27 Cash Machine      WP         90   EC     SH              3    D50     XN        IH     14577.9%             86.6%        58.3%         1.57    64.3%           490                 8           0.0%          9.61%          0.774
+         123     ATR Stop      WP         90 EA25     SH              3    D50     XN        IL      4227.0%             60.1%        46.0%         1.08    49.5%           394                 8           0.0%         11.85%          0.774
+         119     ATR Stop      WP         90 EA25     SK              3    D50     XN        IL      4227.0%             60.1%        46.0%         1.08    49.5%           394                 8           0.0%         11.85%          0.774
+          85    IV Filter      WP         90   EC     SH              3    D50     XN        IN      8425.1%             74.3%        53.3%         1.25    65.8%           494                 8           0.0%          9.50%          0.765
+          69 Strike Study      WP         85   EC     SH              3    D40     X2        IL      2445.1%             49.9%        36.9%         1.17    64.9%           501                 7           0.0%          8.94%          0.760
+         118     ATR Stop      WP         90 EA20     SK              3    D50     XN        IL      3219.2%             54.9%        51.3%         1.02    48.7%           429                 8           0.0%         11.15%          0.752
+
+========================================================================================================================
+YEAR-BY-YEAR RETURNS (TOP 10)
+========================================================================================================================
+ strategy_id     category strike expiry year_2018 year_2019 year_2020 year_2021 year_2022 year_2023 year_2024 year_2025
+          71 Strike Study    D60     X2     40.7%    103.3%     96.5%    405.5%     73.9%    447.2%    130.7%    134.4%
+          19 Cash Machine    D60     XN    171.4%     50.6%     -8.1%    431.1%    -30.4%   1523.5%    881.1%    424.0%
+          79    IV Filter    D50     XN     46.1%     90.9%     17.1%    368.8%     43.9%    162.7%      9.9%    100.9%
+           4 Cash Machine    D60     XN     86.1%     68.6%      5.1%    489.2%     86.5%    164.9%     60.1%     93.9%
+          75 Strike Study    D60     XN     86.1%     68.6%      5.1%    489.2%     86.5%    164.9%     60.1%     93.9%
+           5 Cash Machine    D60     XN     86.1%     68.6%      5.1%    489.2%     86.5%    164.9%     60.1%     93.9%
+          81    IV Filter    D50     XN     21.5%    107.2%     63.2%     87.1%     72.5%    115.0%     83.5%     86.8%
+          67 Strike Study    D60     XB     29.5%    152.2%      1.7%    438.6%     37.8%    198.3%     71.3%     74.2%
+          20 Cash Machine    D60     XB    161.3%     48.1%     -9.4%    366.0%    -32.1%   1505.0%    851.1%    408.6%
+          63 Strike Study    D60     XN     32.3%     88.0%      5.2%    466.2%     56.4%    211.5%     81.0%     93.9%
+
+Total runtime: 1513.8s

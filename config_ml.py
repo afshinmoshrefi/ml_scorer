@@ -9,7 +9,8 @@ CSV_DIR = 'C:/seasonals/data/csv'
 US_CSV_DIR = os.path.join(CSV_DIR, 'US')
 ETF_CSV_DIR = os.path.join(CSV_DIR, 'ETF')
 INDX_CSV_DIR = os.path.join(CSV_DIR, 'INDX')
-OPP_BY_SYMBOL_DIR = os.path.join(DATA_DIR, 'sp500', 'opp_by_symbol')
+_sp500_dir = os.path.join(DATA_DIR, 'sp500_') if os.path.isdir(os.path.join(DATA_DIR, 'sp500_')) else os.path.join(DATA_DIR, 'sp500')
+OPP_BY_SYMBOL_DIR = os.path.join(_sp500_dir, 'opp_by_symbol')
 EARNINGS_DIR = 'C:/seasonals/edgar/earnings'
 SP500_SYMBOLS = os.path.join(DATA_DIR, 'sp500_symbols.csv')
 

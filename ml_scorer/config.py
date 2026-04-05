@@ -8,6 +8,7 @@ CSV_DIR = os.path.join(DATA_DIR, 'csv')
 US_CSV_DIR = os.path.join(CSV_DIR, 'US')
 ETF_CSV_DIR = os.path.join(CSV_DIR, 'ETF')
 INDX_CSV_DIR = os.path.join(CSV_DIR, 'INDX')
+COMM_CSV_DIR = os.path.join(CSV_DIR, 'COMM')
 OPP_BY_SYMBOL_DIR = os.path.join(DATA_DIR, 'sp500', 'opp_by_symbol')
 EARNINGS_DIR = os.environ.get('ML_SCORER_EARNINGS_DIR',
                                os.path.join(os.path.dirname(DATA_DIR), 'edgar', 'earnings'))
@@ -35,53 +36,53 @@ VIX_CUTOFF = 35
 TIERS = {
     '10_30': {
         'sr': {
-            'lgb': 'v2_lgb_20260312.txt',
-            'xgb': 'v2_xgb_20260312.json',
-            'catboost': 'v2_catboost_20260312.cbm',
+            'lgb': 'v2_lgb_20260403.txt',
+            'xgb': 'v2_xgb_20260403.json',
+            'catboost': 'v2_catboost_20260403.cbm',
         },
         'mfe': {
-            'lgb': 'v2_lgb_mfe_20260312.txt',
-            'xgb': 'v2_xgb_mfe_20260312.json',
-            'catboost': 'v2_catboost_mfe_20260312.cbm',
+            'lgb': 'v2_lgb_mfe_20260403.txt',
+            'xgb': 'v2_xgb_mfe_20260403.json',
+            'catboost': 'v2_catboost_mfe_20260403.cbm',
         },
         'calibration_sr': 'calibration_sr.json',
         'calibration_mfe': 'calibration_mfe.json',
     },
     '31_60': {
         'sr': {
-            'lgb': 'v2_lgb_31_60_20260314.txt',
-            'xgb': 'v2_xgb_31_60_20260314.json',
-            'catboost': 'v2_catboost_31_60_20260314.cbm',
+            'lgb': 'v2_lgb_31_60_20260403.txt',
+            'xgb': 'v2_xgb_31_60_20260403.json',
+            'catboost': 'v2_catboost_31_60_20260403.cbm',
         },
         'mfe': {
-            'lgb': 'v2_lgb_31_60_mfe_20260314.txt',
-            'xgb': 'v2_xgb_31_60_mfe_20260314.json',
-            'catboost': 'v2_catboost_31_60_mfe_20260314.cbm',
+            'lgb': 'v2_lgb_31_60_mfe_20260404.txt',
+            'xgb': 'v2_xgb_31_60_mfe_20260404.json',
+            'catboost': 'v2_catboost_31_60_mfe_20260404.cbm',
         },
         'calibration_sr': 'calibration_sr_31_60.json',
         'calibration_mfe': 'calibration_mfe_31_60.json',
     },
     '61_90': {
         'sr': {
-            'lgb': 'v2_lgb_61_90_20260314.txt',
-            'xgb': 'v2_xgb_61_90_20260314.json',
-            'catboost': 'v2_catboost_61_90_20260314.cbm',
+            'lgb': 'v2_lgb_61_90_20260404.txt',
+            'xgb': 'v2_xgb_61_90_20260404.json',
+            'catboost': 'v2_catboost_61_90_20260404.cbm',
         },
         'mfe': {
-            'lgb': 'v2_lgb_61_90_mfe_20260314.txt',
-            'xgb': 'v2_xgb_61_90_mfe_20260314.json',
-            'catboost': 'v2_catboost_61_90_mfe_20260314.cbm',
+            'lgb': 'v2_lgb_61_90_mfe_20260404.txt',
+            'xgb': 'v2_xgb_61_90_mfe_20260404.json',
+            'catboost': 'v2_catboost_61_90_mfe_20260404.cbm',
         },
         'calibration_sr': 'calibration_sr_61_90.json',
         'calibration_mfe': 'calibration_mfe_61_90.json',
     },
 }
 
-# Feature columns the models expect (59 features, order must match training)
+# Feature columns the models expect (62 features, order must match training)
 # IMPORTANT: pat_daysOut is a pattern-defining feature and MUST be included.
 # A pattern = [start_date, ticker, days_out, history_years]. Never remove pat_daysOut.
 FEATURE_COLS = [
-    # Pattern-Intrinsic (22 -- includes pat_daysOut)
+    # Pattern-Intrinsic (23 -- includes pat_daysOut)
     'pat_sharpe_ratio', 'pat_avg_profit2', 'pat_direction',
     'pat_data_years', 'pat_deepest_pass', 'pat_depth_utilization',
     'pat_passes_recent_10', 'pat_recent_vs_deep_sharpe',
@@ -95,7 +96,7 @@ FEATURE_COLS = [
     # Technical (5)
     'ta_trend_long', 'ta_price_vs_sma200', 'ta_sma50_vs_sma200',
     'ta_trend_direction_match', 'ta_rvol_20',
-    # Market Regime (16)
+    # Market Regime (19)
     'mkt_vix_level', 'mkt_vix_percentile_60d', 'mkt_vix_5d_change', 'mkt_vix_term_structure',
     'mkt_yield_curve_10y2y', 'mkt_yield_curve_slope',
     'mkt_credit_spread', 'mkt_credit_spread_change_20d',
@@ -103,6 +104,8 @@ FEATURE_COLS = [
     'mkt_adv_decl_ratio_10d', 'mkt_sector_rotation',
     'mkt_vix_regime_bucket', 'mkt_breadth_momentum',
     'mkt_fed_rate_level', 'mkt_fed_rate_direction',
+    # V3 commodity / FX regime (3)
+    'mkt_dxy_roc_20', 'mkt_cl_roc_20', 'mkt_gc_roc_20',
     # SPX Seasonal (4)
     'mkt_spx_seasonal_wr', 'mkt_spx_seasonal_ret',
     'mkt_spx_seasonal_regime', 'mkt_spx_dir_alignment',
@@ -116,7 +119,7 @@ FEATURE_COLS = [
     'pat_depth_x_vix', 'pat_quality_x_regime',
 ]
 
-# After SR retrain (2026-03-12), both SR and MFE use identical 59-feature FEATURE_COLS.
+# After SR retrain (2026-04-03), both SR and MFE use identical 62-feature FEATURE_COLS.
 # This alias exists for backwards compatibility but should be the same as FEATURE_COLS.
 FEATURE_COLS_MFE = FEATURE_COLS
 
@@ -125,6 +128,42 @@ def get_pe_year(year):
     """Presidential election cycle phase: 1=post-election, 2=midterm, 3=pre-election, 4=election."""
     return ((year - 2001) % 4) + 1
 
+
+def tier_for_days_out(days_out):
+    """Return the correct tier name for a given holding period in days.
+
+    Single source of truth for tier boundaries used by both /score and /select.
+    Boundaries must match the TIERS dict above.
+
+    Raises ValueError for non-positive daysOut -- callers should validate at
+    the API boundary before calling this.
+    """
+    if days_out <= 0:
+        raise ValueError(f'days_out must be positive, got {days_out}')
+    if days_out <= 30:
+        return '10_30'
+    elif days_out <= 60:
+        return '31_60'
+    else:
+        return '61_90'
+
+
+# Markets for opp_to_parquet.py nightly parquet generation and feature engine parquet lookup.
+# Keys are TradeWave resource_ids (used by /select endpoint and opp_to_parquet.py).
+# Values: (display_name, data_folder_name under DATA_DIR).
+# Parquet path: DATA_DIR/<folder>/ml_cache_<YYYY-MM-DD>.parquet
+ML_PARQUET_MARKETS = {
+    '0':  ('DOW 30',        'dj30'),
+    '1':  ('NASDAQ 100',    'nasdaq100'),
+    '2':  ('S&P 500',       'sp500'),
+    '3':  ('RUSSELL 1000',  'rus1000'),
+    '4':  ('WILSHIRE 5000', 'wilshire5000'),
+    '11': ('ETFs',          'ETF'),
+}
+# On Windows dev, sp500 folder has a trailing underscore
+if os.path.isdir(os.path.join(DATA_DIR, 'sp500_')):
+    ML_PARQUET_MARKETS['2'] = ('S&P 500', 'sp500_')
+    ML_PARQUET_MARKETS['11'] = ('ETFs', 'ETF_')
 
 # Sector ETF mapping
 SECTOR_ETF = {

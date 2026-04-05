@@ -1,0 +1,52 @@
+[Parallel(n_jobs=24)]: Using backend LokyBackend with 24 concurrent workers.
+[Parallel(n_jobs=24)]: Done   2 out of  24 | elapsed:  3.7min remaining: 41.0min
+[Parallel(n_jobs=24)]: Done   7 out of  24 | elapsed: 12.1min remaining: 29.3min
+[Parallel(n_jobs=24)]: Done  12 out of  24 | elapsed: 14.0min remaining: 14.0min
+[Parallel(n_jobs=24)]: Done  17 out of  24 | elapsed: 15.4min remaining:  6.3min
+[Parallel(n_jobs=24)]: Done  22 out of  24 | elapsed: 16.9min remaining:  1.5min
+[Parallel(n_jobs=24)]: Done  24 out of  24 | elapsed: 17.4min finished
+Loading C:\seasonals\ml_scorer\results\backtester_input_10_30.parquet...
+  8,039,032 long opportunities
+Loading C:\seasonals\ml_scorer\results\backtester_input_31_60.parquet...
+  13,577,559 long opportunities
+  Filtering earnings...
+  1,953,669/8,039,032 filtered by earnings (24.3%)
+  Filtering earnings...
+  7,048,123/13,577,559 filtered by earnings (51.9%)
+  Loaded prices for 475 symbols
+  2011 trading days
+  Computing symbol quality scores...
+
+Data loaded in 63.3s
+
+Running 24 test configurations...
+
+========================================================================================================================
+IMPROVEMENT IMPACT (each tested independently vs baseline)
+========================================================================================================================
+  SymbolQuality             | Sharpe  4.22 | DD  7.4% | WR 59.1% | Trades   841 | Ann  101.9% | PF  5.06 | Yr+ 8 | +69% +31% +102% +90% +162% +169% +111% +114%
+  SkipMonday                | Sharpe  3.73 | DD  7.3% | WR 59.5% | Trades   691 | Ann   63.0% | PF  4.22 | Yr+ 8 | +46% +32% +78% +65% +92% +82% +49% +65%
+  NoRepeat14d               | Sharpe  3.68 | DD  5.7% | WR 55.8% | Trades   672 | Ann   56.1% | PF  3.77 | Yr+ 8 | +31% +27% +52% +67% +92% +81% +45% +67%
+  VIXScaled                 | Sharpe  3.61 | DD  3.6% | WR 56.2% | Trades   721 | Ann   35.5% | PF  3.47 | Yr+ 8 | +32% +31% +21% +38% +28% +62% +29% +44%
+  ATR_1.5x                  | Sharpe  3.58 | DD  7.0% | WR 55.8% | Trades   722 | Ann   61.7% | PF  3.52 | Yr+ 8 | +42% +43% +74% +81% +87% +76% +36% +63%
+  Baseline                  | Sharpe  3.57 | DD  7.0% | WR 56.2% | Trades   721 | Ann   61.7% | PF  3.49 | Yr+ 8 | +46% +43% +66% +83% +95% +75% +32% +63%
+  ATR_2.0x                  | Sharpe  3.57 | DD  7.0% | WR 56.2% | Trades   721 | Ann   61.7% | PF  3.49 | Yr+ 8 | +46% +43% +66% +83% +95% +75% +32% +63%
+  ATR_3.0x                  | Sharpe  3.57 | DD  7.0% | WR 56.2% | Trades   721 | Ann   61.7% | PF  3.49 | Yr+ 8 | +46% +43% +66% +83% +95% +75% +32% +63%
+  ATR_2.5x                  | Sharpe  3.57 | DD  7.0% | WR 56.2% | Trades   721 | Ann   61.7% | PF  3.49 | Yr+ 8 | +46% +43% +66% +83% +95% +75% +32% +63%
+  WeeklyBreaker             | Sharpe  3.55 | DD  5.4% | WR 56.4% | Trades   669 | Ann   51.1% | PF  3.48 | Yr+ 8 | +31% +40% +49% +56% +73% +65% +42% +56%
+  AllComb_CW_T85            | Sharpe  3.47 | DD  3.9% | WR 57.7% | Trades   717 | Ann   55.4% | PF  5.83 | Yr+ 8 | +38% +28% +41% +56% +25% +86% +88% +100%
+  AllComb_CR_T85            | Sharpe  3.44 | DD  5.0% | WR 58.7% | Trades   726 | Ann   55.1% | PF  5.72 | Yr+ 8 | +32% +27% +52% +47% +22% +88% +103% +92%
+  AllComb_ATR_2.5x          | Sharpe  3.36 | DD  4.5% | WR 58.9% | Trades   677 | Ann   46.9% | PF  4.43 | Yr+ 8 | +44% +12% +41% +38% +29% +79% +70% +76%
+  AllCombined_10_30         | Sharpe  3.36 | DD  4.5% | WR 58.9% | Trades   677 | Ann   46.9% | PF  4.43 | Yr+ 8 | +44% +12% +41% +38% +29% +79% +70% +76%
+  AllComb_ATR_3.0x          | Sharpe  3.36 | DD  4.5% | WR 58.9% | Trades   677 | Ann   46.9% | PF  4.43 | Yr+ 8 | +44% +12% +41% +38% +29% +79% +70% +76%
+  AllComb_ATR_2.0x          | Sharpe  3.35 | DD  4.5% | WR 58.6% | Trades   676 | Ann   46.5% | PF  4.42 | Yr+ 8 | +44% +12% +38% +38% +29% +79% +70% +76%
+  AllComb_EM_T90            | Sharpe  3.29 | DD 10.8% | WR 84.9% | Trades   458 | Ann   46.2% | PF  5.93 | Yr+ 8 | +29% +21% +21% +74% +20% +77% +50% +95%
+  AllComb_SH_T85            | Sharpe  3.28 | DD 10.5% | WR 56.8% | Trades   722 | Ann  101.6% | PF  4.15 | Yr+ 8 | +69% +89% +83% +99% +47% +168% +125% +156%
+  AllComb_ATR_1.5x          | Sharpe  3.27 | DD  4.5% | WR 58.5% | Trades   675 | Ann   45.6% | PF  4.43 | Yr+ 8 | +45% +12% +39% +38% +29% +79% +61% +73%
+  AllComb_P4_C2             | Sharpe  3.18 | DD 10.4% | WR 59.1% | Trades   861 | Ann   59.4% | PF  4.50 | Yr+ 8 | +64% +20% +44% +60% +34% +87% +80% +103%
+  Tier31_60                 | Sharpe  3.11 | DD  6.4% | WR 53.3% | Trades   557 | Ann   56.2% | PF  4.28 | Yr+ 8 | +26% +8% +51% +65% +101% +68% +77% +75%
+  ATR31_60_2.0x             | Sharpe  3.11 | DD  6.4% | WR 53.3% | Trades   557 | Ann   56.2% | PF  4.28 | Yr+ 8 | +26% +8% +51% +65% +101% +68% +77% +75%
+  ATR31_60_2.5x             | Sharpe  3.11 | DD  6.4% | WR 53.3% | Trades   557 | Ann   56.2% | PF  4.28 | Yr+ 8 | +26% +8% +51% +65% +101% +68% +77% +75%
+  AllCombined_31_60         | Sharpe  2.12 | DD  6.1% | WR 51.4% | Trades   541 | Ann   27.2% | PF  3.57 | Yr+ 8 | +10% +2% +23% +45% +14% +48% +19% +70%
+
+Total runtime: 1106.5s
