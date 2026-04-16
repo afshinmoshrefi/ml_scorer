@@ -1,0 +1,21 @@
+strategy_id,label,period,sharpe,max_drawdown,annualized_return,win_rate,trade_count
+V4_STK_A_02_vix_block_B,BaseA | 02_vix_block | both,2018_2024,6.9474,-2.6529,34.7638,84.07,1036
+V4_STK_A_02_vix_block_B,BaseA | 02_vix_block | both,2025,7.1535,-0.9318,38.8286,85.8,162
+V4_STK_A_01_baseline_B,BaseA | 01_baseline | both,2018_2024,6.9474,-2.6529,34.7638,84.07,1036
+V4_STK_A_01_baseline_B,BaseA | 01_baseline | both,2025,7.1535,-0.9318,38.8286,85.8,162
+V4_STK_B_03_sym_quality_B,BaseB | 03_sym_quality | both,2018_2024,7.0538,-2.7487,35.4934,84.18,1024
+V4_STK_B_03_sym_quality_B,BaseB | 03_sym_quality | both,2025,8.3219,-0.8204,43.0707,89.8,147
+V4_STK_B_04_no_repeat14_B,BaseB | 04_no_repeat14 | both,2018_2024,6.9932,-3.665,33.9681,82.92,1019
+V4_STK_B_04_no_repeat14_B,BaseB | 04_no_repeat14 | both,2025,8.0214,-0.8284,41.7625,89.86,148
+V4_STK_A_05_skip_monday_B,BaseA | 05_skip_monday | both,2018_2024,7.2805,-1.8372,34.96,85.0,1000
+V4_STK_A_05_skip_monday_B,BaseA | 05_skip_monday | both,2025,8.4068,-1.5718,44.3751,91.25,160
+V4_STK_A_04_no_repeat14_B,BaseA | 04_no_repeat14 | both,2018_2024,7.0298,-2.5413,34.9265,84.03,1033
+V4_STK_A_04_no_repeat14_B,BaseA | 04_no_repeat14 | both,2025,7.4683,-1.1376,38.052,85.62,160
+V4_STK_B_01_baseline_B,BaseB | 01_baseline | both,2018_2024,6.9006,-3.2162,34.0136,82.97,1016
+V4_STK_B_01_baseline_B,BaseB | 01_baseline | both,2025,8.3219,-0.8204,43.0707,89.8,147
+V4_STK_B_10_vix_regime_B,BaseB | 10_vix_regime | both,2018_2024,6.9291,-3.2162,35.4833,83.29,1059
+V4_STK_B_10_vix_regime_B,BaseB | 10_vix_regime | both,2025,8.3219,-0.8204,43.0707,89.8,147
+V4_STK_B_09_regime_B,BaseB | 09_regime | both,2018_2024,6.9291,-3.2162,35.4833,83.29,1059
+V4_STK_B_09_regime_B,BaseB | 09_regime | both,2025,8.3219,-0.8204,43.0707,89.8,147
+V4_STK_B_02_vix_block_B,BaseB | 02_vix_block | both,2018_2024,6.9006,-3.2162,34.0136,82.97,1016
+V4_STK_B_02_vix_block_B,BaseB | 02_vix_block | both,2025,8.3219,-0.8204,43.0707,89.8,147
