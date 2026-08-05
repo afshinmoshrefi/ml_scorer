@@ -144,6 +144,48 @@ Score one or multiple opportunities. `tier` is optional -- auto-detected from `d
 - `ml_score` -- 0-100 percentile rank (higher = stronger prediction)
 - `tier` -- which tier was used for this result
 
+### POST /score/context
+
+Additive TradeWave checkpoint endpoint. Legacy `POST /score` remains unchanged.
+This endpoint recalculates the pattern's full V3 all-qualifying-combo profile
+at one exact inclusive calendar window before scoring it.
+
+```json
+{
+  "resource_id": "2",
+  "symbol": "AAPL",
+  "date": "2026-08-05",
+  "calendar_days": 30,
+  "direction": "l",
+  "years": "20",
+  "partial": {"enabled": false, "source_pattern_calendar_days": 150}
+}
+```
+
+`calendar_days` is strictly 30, 60, or 90. The entry day is day 1, so the
+service derives raw `daysOut` as 29, 59, or 89 and derives the model tier. A
+caller-supplied `daysOut` or tier is rejected. `years` and `partial` are
+preserved as provenance and cache identity only. V3 was trained on the full
+all-combo profile, not on a user-selected years cohort.
+
+Only TradeWave US stock/ETF resources `0`, `1`, `2`, `3`, `4`, and `11` are
+accepted. DXY, crude `CL`, and gold `GC` remain internal regime inputs. The
+crude series has a separate cache namespace so equity ticker `CL` is not
+shadowed.
+
+The scorer enumerates the symbol's actual combo files, recomputes each
+completed observation from raw adjusted OHLC data, applies the real combo
+threshold, aggregates the same profile fields used in V3 training, and then
+computes the other feature groups. A matching prebuilt exact-horizon profile
+is reused only after the raw-price result validates it. No qualifying profile
+returns a structured `pattern_profile_unavailable` item instead of a fabricated
+or selected-cohort feature vector.
+
+Batch input uses `{"opportunities": [...]}`. Responses use the normal
+`results`/`tiers_used` wrapper and add model/data/schema metadata, a profile
+hash, and a full context hash. A VIX block is a stable non-retryable unavailable
+result for that data version.
+
 ### POST /select
 
 Find and score today's best opportunities from the nightly parquet cache.
@@ -168,7 +210,13 @@ Find and score today's best opportunities from the nightly parquet cache.
 Requires nightly parquet cache. Returns error if parquet missing for the requested date.
 
 ### GET /health
-Returns `status`, `tiers`, `feature_count` (62), `uptime_seconds`, `vix_cutoff`.
+Returns `status`, `tiers`, `feature_count` (62), `uptime_seconds`, `vix_cutoff`,
+model release, feature/context/profile schema versions and hashes, artifact
+manifest hash, and the live common `data_as_of` date.
+
+### GET /metadata
+Returns the service metadata plus the SHA-256 manifest for all 18 model and 6
+calibration artifacts.
 
 ### GET /tiers
 Returns list of available tier names.
@@ -202,6 +250,8 @@ Returns list of available tier names.
 - `_opp_cache`: (symbol, date_str) -> combos dict. Targeted scan, 5 dates only. Small per entry.
 - `_parquet_by_symbol`: symbol -> DataFrame. Reset on date change. One day's data only.
 - `_market_cache`: regime indicators by date. Grows slowly.
+- `_commodity_price_cache`: DXY-adjacent commodity context keyed separately
+  from target equities, preventing the `CL` ticker collision.
 - `_ta_cache`: technical indicators by (symbol, date).
 
 ### Feature Validation

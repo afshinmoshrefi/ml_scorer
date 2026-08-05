@@ -22,6 +22,19 @@ CALIBRATION_DIR = os.path.join(PACKAGE_DIR, 'calibration')
 HOST = os.environ.get('ML_SCORER_HOST', '0.0.0.0')
 PORT = int(os.environ.get('ML_SCORER_PORT', 5090))
 
+# Versioned serving contract.  The model filenames still carry the historical
+# ``v2_`` prefix, but the deployed 22_sage release consumes the 62-feature V3
+# schema below.
+MODEL_RELEASE = 'v3-22sage-20260802-03'
+FEATURE_SCHEMA_VERSION = 'v3-62'
+CONTEXT_SCHEMA_VERSION = 'recalculated-pattern-context-v1'
+PATTERN_PROFILE_SCHEMA_VERSION = 'all-qualifying-combos-v1'
+
+# The opportunity generator uses a 4% annual hurdle when it builds each
+# combo's Sharpe ratio.  Recalculated profiles must use the same value the V3
+# training rows used.
+PATTERN_RISK_FREE_RETURN = 4.0
+
 # Pattern depth
 MAX_DEPTH_CAP = 35
 
@@ -160,6 +173,10 @@ ML_PARQUET_MARKETS = {
     '4':  ('WILSHIRE 5000', 'wilshire5000'),
     '11': ('ETFs',          'ETF'),
 }
+
+# /score/context is deliberately limited to the equity/ETF universes on which
+# the scorer is supported.  DXY, CL and GC are model context inputs only.
+CONTEXT_RESOURCE_IDS = frozenset(ML_PARQUET_MARKETS)
 # On Windows dev, sp500 folder has a trailing underscore
 if os.path.isdir(os.path.join(DATA_DIR, 'sp500_')):
     ML_PARQUET_MARKETS['2'] = ('S&P 500', 'sp500_')

@@ -5,8 +5,10 @@ Scores seasonal stock pattern opportunities using SR + MFE ensemble models.
 
 Endpoints:
   POST /score       -- Score one or more opportunities
+  POST /score/context -- Recalculate and score exact 30/60/90-day checkpoints
   POST /select      -- Find and score today's best opportunities from parquet cache
   GET  /health      -- Service health check
+  GET  /metadata    -- Model/schema/data provenance and artifact manifest
   GET  /tiers       -- List available scoring tiers
 
 Usage:
@@ -16,19 +18,30 @@ Usage:
 import logging
 import time
 import os
+import math
 
 from flask import Flask, request, jsonify
 
 try:
     from .config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, tier_for_days_out
     from .scorer import ScorerManager
-    from .feature_engine import FeatureEngine
+    from .feature_engine import FeatureEngine, PatternProfileUnavailable
     from .daily_opp_selection import select_daily_opps
+    from .context_contract import (
+        ContextValidationError, error_payload, sha256_json,
+        validate_context_opportunity,
+    )
+    from .metadata import model_manifest, service_metadata
 except ImportError:
     from config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, tier_for_days_out
     from scorer import ScorerManager
-    from feature_engine import FeatureEngine
+    from feature_engine import FeatureEngine, PatternProfileUnavailable
     from daily_opp_selection import select_daily_opps
+    from context_contract import (
+        ContextValidationError, error_payload, sha256_json,
+        validate_context_opportunity,
+    )
+    from metadata import model_manifest, service_metadata
 
 # Logging
 logging.basicConfig(
@@ -58,8 +71,15 @@ def init_service():
         scorer_mgr.load_tier(tier_name, tier_config, MODEL_DIR, CALIBRATION_DIR,
                              FEATURE_COLS, FEATURE_COLS_MFE)
 
+    # Pin the manifest to the artifacts that were actually loaded by this
+    # process.  EOD data metadata remains live and is not process-cached.
+    loaded_metadata = service_metadata()
+
     _startup_time = time.time()
     log.info(f"Service ready in {_startup_time - t0:.1f}s. Tiers: {scorer_mgr.available_tiers()}")
+    log.info(
+        "Model release %s, manifest %s",
+        loaded_metadata['model_release'], loaded_metadata['model_manifest_hash'])
 
 
 # ---------------------------------------------------------------
@@ -68,12 +88,23 @@ def init_service():
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({
+    payload = {
         'status': 'ok',
         'tiers': scorer_mgr.available_tiers(),
         'uptime_seconds': round(time.time() - _startup_time, 0) if _startup_time else 0,
         'feature_count': len(FEATURE_COLS),
         'vix_cutoff': VIX_CUTOFF,
+    }
+    payload.update(service_metadata())
+    return jsonify(payload)
+
+
+@app.route('/metadata', methods=['GET'])
+def metadata():
+    """Return versioned model, feature, data and artifact provenance."""
+    return jsonify({
+        'metadata': service_metadata(),
+        'model_manifest': model_manifest(),
     })
 
 
@@ -239,6 +270,174 @@ def score():
     })
 
 
+def _context_error_from_raw(raw, code, message, retryable=False):
+    """Attach safe request identity to a structured per-item error."""
+    result = {}
+    if isinstance(raw, dict):
+        for field in ('resource_id', 'symbol', 'date', 'calendar_days',
+                      'daysOut', 'direction', 'years', 'partial', 'tier'):
+            if field in raw:
+                result[field] = raw[field]
+    result.update(error_payload(code, message, retryable=retryable))
+    return result
+
+
+def _public_profile_metadata(profile_meta):
+    return {
+        key: value
+        for key, value in profile_meta.items()
+        if not key.startswith('_') and key != 'price_path'
+    }
+
+
+@app.route('/score/context', methods=['POST'])
+def score_context():
+    """Score 30/60/90-day checkpoints after exact pattern recalculation.
+
+    This endpoint is additive.  The legacy POST /score request and response
+    contract above is intentionally unchanged.
+    """
+    t0 = time.time()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': {
+            'code': 'invalid_json',
+            'message': 'request body must be a JSON object',
+            'retryable': False,
+        }}), 400
+
+    if 'opportunities' in data:
+        if set(data) != {'opportunities'}:
+            return jsonify({'error': {
+                'code': 'unknown_top_level_field',
+                'message': 'batch requests may contain only opportunities',
+                'retryable': False,
+            }}), 400
+        opportunities = data['opportunities']
+    else:
+        opportunities = [data]
+
+    if not isinstance(opportunities, list) or not opportunities:
+        return jsonify({'error': {
+            'code': 'empty_opportunities',
+            'message': 'opportunities must be a nonempty list',
+            'retryable': False,
+        }}), 400
+    if len(opportunities) > 100:
+        return jsonify({'error': {
+            'code': 'batch_too_large',
+            'message': 'at most 100 opportunities may be scored per request',
+            'retryable': False,
+        }}), 400
+
+    metadata_payload = service_metadata()
+    results = []
+    tiers_used = set()
+
+    for raw in opportunities:
+        try:
+            item = validate_context_opportunity(raw)
+        except ContextValidationError as exc:
+            results.append(_context_error_from_raw(raw, exc.code, exc.message))
+            continue
+
+        tier_name = item['tier']
+        tier = scorer_mgr.get_tier(tier_name)
+        if tier is None:
+            results.append(_context_error_from_raw(
+                item,
+                'tier_unavailable',
+                f'model tier {tier_name} is not loaded',
+                retryable=True,
+            ))
+            continue
+        tiers_used.add(tier_name)
+
+        try:
+            features, profile_meta = engine.compute_recalculated_features(
+                item['resource_id'], item['symbol'], item['date'],
+                item['daysOut'], item['direction'])
+
+            missing_features = [name for name in FEATURE_COLS if name not in features]
+            if missing_features:
+                raise PatternProfileUnavailable(
+                    'incomplete_feature_vector',
+                    {'missing_features': missing_features},
+                )
+
+            vix = features.get('mkt_vix_level')
+            if vix is not None and math.isfinite(float(vix)) and vix > VIX_CUTOFF:
+                blocked = dict(item)
+                blocked.update(error_payload(
+                    'vix_blocked',
+                    f'VIX={vix:.1f} exceeds cutoff ({VIX_CUTOFF})',
+                    # Stable for this data-as-of.  A retry against the same
+                    # context cannot change the hurricane-filter decision.
+                    retryable=False,
+                ))
+                blocked['vix_blocked'] = True
+                results.append(blocked)
+                continue
+
+            scores = tier.predict(features)
+            public_profile = _public_profile_metadata(profile_meta)
+            context_identity = {
+                'resource_id': item['resource_id'],
+                'symbol': item['symbol'],
+                'date': item['date'],
+                'calendar_days': item['calendar_days'],
+                'daysOut': item['daysOut'],
+                'direction': item['direction'],
+                'years': item['years'],
+                'partial': item['partial'],
+                'tier': tier_name,
+                'model_release': metadata_payload['model_release'],
+                'feature_schema_version': metadata_payload['feature_schema_version'],
+                'context_schema_version': metadata_payload['context_schema_version'],
+                'model_manifest_hash': metadata_payload['model_manifest_hash'],
+                'data_as_of': profile_meta['data_as_of'],
+                'market_data_as_of': metadata_payload['data_as_of'],
+                'profile_hash': profile_meta['profile_hash'],
+            }
+            result = dict(item)
+            result.update(scores)
+            result.update({
+                'status': 'ok',
+                'pattern_recalculated': True,
+                'pattern_profile': public_profile,
+                'context_hash': sha256_json(context_identity),
+            })
+            results.append(result)
+
+        except PatternProfileUnavailable as exc:
+            code = exc.reason
+            message = 'No qualifying, complete V3 pattern profile exists at this checkpoint.'
+            if code != 'pattern_profile_unavailable':
+                message = f'Checkpoint pattern profile unavailable: {code}'
+            unavailable = _context_error_from_raw(item, code, message)
+            if exc.details:
+                unavailable['error']['details'] = exc.details
+            results.append(unavailable)
+        except Exception as exc:
+            log.exception(
+                'Error scoring recalculated context %s %s %sd',
+                item['symbol'], item['date'], item['calendar_days'])
+            results.append(_context_error_from_raw(
+                item,
+                'context_scoring_failed',
+                'Checkpoint scoring failed unexpectedly. See scorer logs for details.',
+                retryable=True,
+            ))
+
+    elapsed = (time.time() - t0) * 1000
+    return jsonify({
+        'results': results,
+        'tiers_used': sorted(tiers_used),
+        'metadata': metadata_payload,
+        'elapsed_ms': round(elapsed, 1),
+    })
+
+
 @app.route('/select', methods=['POST'])
 def select():
     """
@@ -319,7 +518,8 @@ def select():
 # Startup
 # ---------------------------------------------------------------
 
-init_service()
+if os.environ.get('ML_SCORER_SKIP_INIT') != '1':
+    init_service()
 
 if __name__ == '__main__':
     app.run(host=HOST, port=PORT, debug=True)
