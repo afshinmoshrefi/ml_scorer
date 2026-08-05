@@ -1,0 +1,888 @@
+{
+  "tier": "61_90",
+  "n_rows": 18805698,
+  "base_rate": 0.69417,
+  "seed": 42,
+  "subsampled": false,
+  "scoreboard": [
+    {
+      "method": "production_20bin_step",
+      "fit_scheme": "in_sample",
+      "ECE": 3.9e-05,
+      "MCE": 0.000464,
+      "Brier": 0.2063,
+      "logloss": 0.601428,
+      "AUC": 0.590584
+    },
+    {
+      "method": "platt_linear",
+      "fit_scheme": "LOYO",
+      "ECE": 0.016065,
+      "MCE": 0.052989,
+      "Brier": 0.207779,
+      "logloss": 0.60475,
+      "AUC": 0.590584
+    },
+    {
+      "method": "platt_quad",
+      "fit_scheme": "LOYO",
+      "ECE": 0.01691,
+      "MCE": 0.055686,
+      "Brier": 0.207925,
+      "logloss": 0.605219,
+      "AUC": 0.590584
+    },
+    {
+      "method": "isotonic_clip",
+      "fit_scheme": "LOYO",
+      "ECE": 0.018613,
+      "MCE": 0.377938,
+      "Brier": 0.209684,
+      "logloss": 0.61435,
+      "AUC": 0.590584
+    },
+    {
+      "method": "isotonic_extrap",
+      "fit_scheme": "LOYO",
+      "ECE": 0.018613,
+      "MCE": 0.377938,
+      "Brier": 0.209684,
+      "logloss": 0.61435,
+      "AUC": 0.590584
+    },
+    {
+      "method": "isotonic_recency_w",
+      "fit_scheme": "LOYO",
+      "ECE": 0.027805,
+      "MCE": 0.377938,
+      "Brier": 0.209891,
+      "logloss": 0.614821,
+      "AUC": 0.590584
+    },
+    {
+      "method": "quantile_bins_10",
+      "fit_scheme": "LOYO",
+      "ECE": 0.017169,
+      "MCE": 0.254701,
+      "Brier": 0.210416,
+      "logloss": 0.611143,
+      "AUC": 0.590584
+    },
+    {
+      "method": "production_20bin_step",
+      "fit_scheme": "LOYO",
+      "ECE": 0.026738,
+      "MCE": 0.228822,
+      "Brier": 0.210639,
+      "logloss": 0.611549,
+      "AUC": 0.590584
+    },
+    {
+      "method": "quantile_bins_20",
+      "fit_scheme": "LOYO",
+      "ECE": 0.026738,
+      "MCE": 0.228822,
+      "Brier": 0.210639,
+      "logloss": 0.611549,
+      "AUC": 0.590584
+    },
+    {
+      "method": "quantile_bins_50",
+      "fit_scheme": "LOYO",
+      "ECE": 0.031732,
+      "MCE": 0.150704,
+      "Brier": 0.211238,
+      "logloss": 0.612505,
+      "AUC": 0.590584
+    },
+    {
+      "method": "isotonic_by_dir",
+      "fit_scheme": "LOYO",
+      "ECE": 0.04426,
+      "MCE": 0.377876,
+      "Brier": 0.212403,
+      "logloss": 0.620381,
+      "AUC": 0.590584
+    }
+  ],
+  "winner": {
+    "method": "platt_linear",
+    "ECE": 0.01606474192504956,
+    "MCE": 0.05298933467508915,
+    "Brier": 0.2077785257411432,
+    "logloss": 0.6047503051832477,
+    "AUC": 0.5905837307911229
+  },
+  "honest_baseline_LOYO": {
+    "ECE": 0.026738486479979073,
+    "MCE": 0.22882234072105745,
+    "Brier": 0.21063931873759048,
+    "logloss": 0.6115493833028126,
+    "AUC": 0.5905837307911229
+  },
+  "delta_winner_vs_honest_baseline": {
+    "ECE": -0.010674,
+    "Brier": -0.002861,
+    "logloss": -0.006799
+  },
+  "breakdown_baseline_LOYO": {
+    "overall": {
+      "ECE": 0.026738486479979073,
+      "MCE": 0.22882234072105745,
+      "Brier": 0.21063931873759048,
+      "logloss": 0.6115493833028126,
+      "AUC": 0.5905837307911229,
+      "n": 18805698
+    },
+    "by_val_year": {
+      "2018": {
+        "ECE": 0.04300139054571315,
+        "MCE": 0.2288218881597308,
+        "Brier": 0.2195215264922686,
+        "logloss": 0.631809398636496,
+        "AUC": 0.41553887221399655,
+        "n": 2389167
+      },
+      "2019": {
+        "ECE": 0.07416826437295328,
+        "MCE": 0.24185875224597975,
+        "Brier": 0.22145851058537297,
+        "logloss": 0.6344374966343383,
+        "AUC": 0.4863050164032376,
+        "n": 2420236
+      },
+      "2020": {
+        "ECE": 0.09426776938509193,
+        "MCE": 0.21519191382152453,
+        "Brier": 0.2053822239468753,
+        "logloss": 0.597439106854459,
+        "AUC": 0.7207296734232863,
+        "n": 1974266
+      },
+      "2021": {
+        "ECE": 0.042812823767510846,
+        "MCE": 0.20569039649168774,
+        "Brier": 0.2115617105662486,
+        "logloss": 0.6162606942937345,
+        "AUC": 0.5752310321701456,
+        "n": 2415304
+      },
+      "2022": {
+        "ECE": 0.11279626429696722,
+        "MCE": 0.4609363860313412,
+        "Brier": 0.17958230691640933,
+        "logloss": 0.5467820297422874,
+        "AUC": 0.4691103014174441,
+        "n": 2392038
+      },
+      "2023": {
+        "ECE": 0.04209545299616704,
+        "MCE": 0.06567881174475676,
+        "Brier": 0.1989120883542516,
+        "logloss": 0.5844731135979973,
+        "AUC": 0.6681529837217342,
+        "n": 2414808
+      },
+      "2024": {
+        "ECE": 0.03431825424797497,
+        "MCE": 0.05358567743528786,
+        "Brier": 0.2193575248818894,
+        "logloss": 0.6295752370625233,
+        "AUC": 0.6250432425834284,
+        "n": 2417861
+      },
+      "2025": {
+        "ECE": 0.05535268897005154,
+        "MCE": 0.22721128002340157,
+        "Brier": 0.22838650752424713,
+        "logloss": 0.6490826637488206,
+        "AUC": 0.6872229549439084,
+        "n": 2382018
+      }
+    },
+    "by_direction": {
+      "l": {
+        "ECE": 0.03213644654578969,
+        "MCE": 0.20445797257793974,
+        "Brier": 0.20442224974575132,
+        "logloss": 0.598394084204417,
+        "AUC": 0.5718189020920793,
+        "n": 15694280
+      },
+      "s": {
+        "ECE": 0.08862739042769882,
+        "MCE": 0.3051597401526944,
+        "Brier": 0.2419987894153447,
+        "logloss": 0.6779059279824313,
+        "AUC": 0.5869309703073936,
+        "n": 3111418
+      }
+    },
+    "by_daysOut_bucket": {
+      "61-70": {
+        "ECE": 0.0270347457774249,
+        "MCE": 0.23882157415342864,
+        "Brier": 0.21157258360236522,
+        "logloss": 0.6135723548243153,
+        "AUC": 0.5900746454496896,
+        "n": 6149504
+      },
+      "71-80": {
+        "ECE": 0.026667908421498826,
+        "MCE": 0.23163647788276942,
+        "Brier": 0.2104040973050239,
+        "logloss": 0.6111110360523141,
+        "AUC": 0.588907963559525,
+        "n": 6289980
+      },
+      "81-90": {
+        "ECE": 0.026522044940565648,
+        "MCE": 0.2163582987531808,
+        "Brier": 0.20997022751436525,
+        "logloss": 0.6100283731663829,
+        "AUC": 0.5928239847691879,
+        "n": 6366214
+      }
+    }
+  },
+  "breakdown_winner_LOYO": {
+    "overall": {
+      "ECE": 0.01606474192504956,
+      "MCE": 0.05298933467508915,
+      "Brier": 0.2077785257411432,
+      "logloss": 0.6047503051832477,
+      "AUC": 0.5905837307911229,
+      "n": 18805698
+    },
+    "by_val_year": {
+      "2018": {
+        "ECE": 0.030006377539555498,
+        "MCE": 0.25426526873537575,
+        "Brier": 0.2199176582493719,
+        "logloss": 0.6327169267568905,
+        "AUC": 0.41553887221399655,
+        "n": 2389167
+      },
+      "2019": {
+        "ECE": 0.05861886081408771,
+        "MCE": 0.3180828988444553,
+        "Brier": 0.217414289222358,
+        "logloss": 0.626654281058005,
+        "AUC": 0.4863050164032376,
+        "n": 2420236
+      },
+      "2020": {
+        "ECE": 0.08481420465168948,
+        "MCE": 0.2672085626015692,
+        "Brier": 0.20218440597902615,
+        "logloss": 0.5872835899562888,
+        "AUC": 0.7207296734232863,
+        "n": 1974266
+      },
+      "2021": {
+        "ECE": 0.036476108421442416,
+        "MCE": 0.19313474114776674,
+        "Brier": 0.21035594278962091,
+        "logloss": 0.6123950153167165,
+        "AUC": 0.5752310321701456,
+        "n": 2415304
+      },
+      "2022": {
+        "ECE": 0.09461740133012272,
+        "MCE": 0.33262805194742306,
+        "Brier": 0.1753708818354766,
+        "logloss": 0.5371913801891216,
+        "AUC": 0.4691103014174441,
+        "n": 2392038
+      },
+      "2023": {
+        "ECE": 0.04551750249582779,
+        "MCE": 0.1716996500042467,
+        "Brier": 0.197814047832939,
+        "logloss": 0.5816174370163832,
+        "AUC": 0.6681529837217342,
+        "n": 2414808
+      },
+      "2024": {
+        "ECE": 0.032902625793048916,
+        "MCE": 0.12117363858852104,
+        "Brier": 0.21771028416385313,
+        "logloss": 0.6257510585233036,
+        "AUC": 0.6250432425834284,
+        "n": 2417861
+      },
+      "2025": {
+        "ECE": 0.08607461445683334,
+        "MCE": 0.2693811562715075,
+        "Brier": 0.22040009434687963,
+        "logloss": 0.6311472388695112,
+        "AUC": 0.6872229549439084,
+        "n": 2382018
+      }
+    },
+    "by_direction": {
+      "l": {
+        "ECE": 0.024224646926288528,
+        "MCE": 0.1099889955395481,
+        "Brier": 0.201936743270303,
+        "logloss": 0.5922859070332174,
+        "AUC": 0.5718189020920793,
+        "n": 15694280
+      },
+      "s": {
+        "ECE": 0.03547816023879585,
+        "MCE": 0.2672085626015692,
+        "Brier": 0.23724501651687752,
+        "logloss": 0.6676218816149866,
+        "AUC": 0.5869309703073936,
+        "n": 3111418
+      }
+    },
+    "by_daysOut_bucket": {
+      "61-70": {
+        "ECE": 0.017210964012262825,
+        "MCE": 0.06722622637953224,
+        "Brier": 0.20858863855892326,
+        "logloss": 0.6066166300023272,
+        "AUC": 0.5900746454496896,
+        "n": 6149504
+      },
+      "71-80": {
+        "ECE": 0.017492308614341232,
+        "MCE": 0.05675505509307033,
+        "Brier": 0.2075179507475649,
+        "logloss": 0.6042598721996428,
+        "AUC": 0.588907963559525,
+        "n": 6289980
+      },
+      "81-90": {
+        "ECE": 0.013607868095856934,
+        "MCE": 0.06058239098269674,
+        "Brier": 0.2072534443481391,
+        "logloss": 0.6034320714132267,
+        "AUC": 0.5928239847691879,
+        "n": 6366214
+      }
+    }
+  },
+  "tail_analysis": {
+    "production_top_bin_pred_max": 51.0079,
+    "production_top_bin_win_prob": 0.8693,
+    "rows_above_production_top_pred_max_in_sample": 1,
+    "rows_above_loyo_fold_fit_max_total": 16,
+    "loyo_fold_detail": [
+      {
+        "val_year": 2018,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      },
+      {
+        "val_year": 2019,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      },
+      {
+        "val_year": 2020,
+        "fit_max_pred": 44.8485,
+        "n_eval_above_fit_max": 16
+      },
+      {
+        "val_year": 2021,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      },
+      {
+        "val_year": 2022,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      },
+      {
+        "val_year": 2023,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      },
+      {
+        "val_year": 2024,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      },
+      {
+        "val_year": 2025,
+        "fit_max_pred": 51.0079,
+        "n_eval_above_fit_max": 0
+      }
+    ],
+    "above_loyo_fit_max_slice": {
+      "n": 16,
+      "realized_wr": 1.0,
+      "baseline_loyo_mean_prob": 0.81128,
+      "production_insample_mean_prob": 0.8693,
+      "platt_linear_mean_prob": 0.99893,
+      "baseline_loyo_abs_gap": 0.18872,
+      "platt_linear_abs_gap": 0.00107
+    },
+    "top_1pct_pred_threshold": 11.677,
+    "top_1pct_slice": {
+      "n": 188057,
+      "realized_wr": 0.93672,
+      "baseline_loyo_mean_prob": 0.81831,
+      "production_insample_mean_prob": 0.8693,
+      "platt_linear_mean_prob": 0.91584,
+      "baseline_loyo_abs_gap": 0.11841,
+      "platt_linear_abs_gap": 0.02088
+    }
+  },
+  "reliability_tables": {
+    "prob_bins": {
+      "baseline": [
+        {
+          "prob_bin": 0,
+          "bin_lo": 0.0,
+          "bin_hi": 0.0667,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 1,
+          "bin_lo": 0.0667,
+          "bin_hi": 0.1333,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 2,
+          "bin_lo": 0.1333,
+          "bin_hi": 0.2,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 3,
+          "bin_lo": 0.2,
+          "bin_hi": 0.2667,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 4,
+          "bin_lo": 0.2667,
+          "bin_hi": 0.3333,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 5,
+          "bin_lo": 0.3333,
+          "bin_hi": 0.4,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 6,
+          "bin_lo": 0.4,
+          "bin_hi": 0.4667,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        },
+        {
+          "prob_bin": 7,
+          "bin_lo": 0.4667,
+          "bin_hi": 0.5333,
+          "mean_pred_prob": 0.50487,
+          "mean_realized": 0.56763,
+          "count": 1380310
+        },
+        {
+          "prob_bin": 8,
+          "bin_lo": 0.5333,
+          "bin_hi": 0.6,
+          "mean_pred_prob": 0.59267,
+          "mean_realized": 0.82149,
+          "count": 158948
+        },
+        {
+          "prob_bin": 9,
+          "bin_lo": 0.6,
+          "bin_hi": 0.6667,
+          "mean_pred_prob": 0.63527,
+          "mean_realized": 0.66071,
+          "count": 3779402
+        },
+        {
+          "prob_bin": 10,
+          "bin_lo": 0.6667,
+          "bin_hi": 0.7333,
+          "mean_pred_prob": 0.70716,
+          "mean_realized": 0.70264,
+          "count": 9001290
+        },
+        {
+          "prob_bin": 11,
+          "bin_lo": 0.7333,
+          "bin_hi": 0.8,
+          "mean_pred_prob": 0.75783,
+          "mean_realized": 0.70144,
+          "count": 3290534
+        },
+        {
+          "prob_bin": 12,
+          "bin_lo": 0.8,
+          "bin_hi": 0.8667,
+          "mean_pred_prob": 0.81702,
+          "mean_realized": 0.85652,
+          "count": 965196
+        },
+        {
+          "prob_bin": 13,
+          "bin_lo": 0.8667,
+          "bin_hi": 0.9333,
+          "mean_pred_prob": 0.88254,
+          "mean_realized": 0.79851,
+          "count": 230018
+        },
+        {
+          "prob_bin": 14,
+          "bin_lo": 0.9333,
+          "bin_hi": 1.0,
+          "mean_pred_prob": null,
+          "mean_realized": null,
+          "count": 0
+        }
+      ],
+      "best": [
+        {
+          "prob_bin": 0,
+          "bin_lo": 0.0,
+          "bin_hi": 0.0667,
+          "mean_pred_prob": 0.04918,
+          "mean_realized": 0.31058,
+          "count": 293
+        },
+        {
+          "prob_bin": 1,
+          "bin_lo": 0.0667,
+          "bin_hi": 0.1333,
+          "mean_pred_prob": 0.10447,
+          "mean_realized": 0.46142,
+          "count": 1905
+        },
+        {
+          "prob_bin": 2,
+          "bin_lo": 0.1333,
+          "bin_hi": 0.2,
+          "mean_pred_prob": 0.17022,
+          "mean_realized": 0.43743,
+          "count": 4339
+        },
+        {
+          "prob_bin": 3,
+          "bin_lo": 0.2,
+          "bin_hi": 0.2667,
+          "mean_pred_prob": 0.23701,
+          "mean_realized": 0.44613,
+          "count": 9161
+        },
+        {
+          "prob_bin": 4,
+          "bin_lo": 0.2667,
+          "bin_hi": 0.3333,
+          "mean_pred_prob": 0.30584,
+          "mean_realized": 0.27373,
+          "count": 23403
+        },
+        {
+          "prob_bin": 5,
+          "bin_lo": 0.3333,
+          "bin_hi": 0.4,
+          "mean_pred_prob": 0.37182,
+          "mean_realized": 0.37116,
+          "count": 59082
+        },
+        {
+          "prob_bin": 6,
+          "bin_lo": 0.4,
+          "bin_hi": 0.4667,
+          "mean_pred_prob": 0.43515,
+          "mean_realized": 0.42744,
+          "count": 114146
+        },
+        {
+          "prob_bin": 7,
+          "bin_lo": 0.4667,
+          "bin_hi": 0.5333,
+          "mean_pred_prob": 0.50339,
+          "mean_realized": 0.53265,
+          "count": 417255
+        },
+        {
+          "prob_bin": 8,
+          "bin_lo": 0.5333,
+          "bin_hi": 0.6,
+          "mean_pred_prob": 0.57764,
+          "mean_realized": 0.63063,
+          "count": 1172664
+        },
+        {
+          "prob_bin": 9,
+          "bin_lo": 0.6,
+          "bin_hi": 0.6667,
+          "mean_pred_prob": 0.63634,
+          "mean_realized": 0.61681,
+          "count": 3355479
+        },
+        {
+          "prob_bin": 10,
+          "bin_lo": 0.6667,
+          "bin_hi": 0.7333,
+          "mean_pred_prob": 0.70322,
+          "mean_realized": 0.70994,
+          "count": 9330672
+        },
+        {
+          "prob_bin": 11,
+          "bin_lo": 0.7333,
+          "bin_hi": 0.8,
+          "mean_pred_prob": 0.76,
+          "mean_realized": 0.73751,
+          "count": 2977251
+        },
+        {
+          "prob_bin": 12,
+          "bin_lo": 0.8,
+          "bin_hi": 0.8667,
+          "mean_pred_prob": 0.8264,
+          "mean_realized": 0.80828,
+          "count": 1030308
+        },
+        {
+          "prob_bin": 13,
+          "bin_lo": 0.8667,
+          "bin_hi": 0.9333,
+          "mean_pred_prob": 0.89191,
+          "mean_realized": 0.92111,
+          "count": 268822
+        },
+        {
+          "prob_bin": 14,
+          "bin_lo": 0.9333,
+          "bin_hi": 1.0,
+          "mean_pred_prob": 0.9561,
+          "mean_realized": 0.94064,
+          "count": 40918
+        }
+      ]
+    },
+    "pred_deciles": {
+      "baseline": [
+        {
+          "pred_decile": 0,
+          "pred_lo": -38.8852,
+          "pred_hi": -0.3188,
+          "mean_pred_prob": 0.55178,
+          "mean_realized": 0.53936,
+          "abs_gap": 0.01242,
+          "count": 1880570
+        },
+        {
+          "pred_decile": 1,
+          "pred_lo": -0.3188,
+          "pred_hi": 1.0191,
+          "mean_pred_prob": 0.63467,
+          "mean_realized": 0.6372,
+          "abs_gap": 0.00253,
+          "count": 1880570
+        },
+        {
+          "pred_decile": 2,
+          "pred_lo": 1.0191,
+          "pred_hi": 2.0459,
+          "mean_pred_prob": 0.64465,
+          "mean_realized": 0.63933,
+          "abs_gap": 0.00531,
+          "count": 1880372
+        },
+        {
+          "pred_decile": 3,
+          "pred_lo": 2.0459,
+          "pred_hi": 2.7673,
+          "mean_pred_prob": 0.67876,
+          "mean_realized": 0.67837,
+          "abs_gap": 0.00038,
+          "count": 1880763
+        },
+        {
+          "pred_decile": 4,
+          "pred_lo": 2.7673,
+          "pred_hi": 3.1571,
+          "mean_pred_prob": 0.7361,
+          "mean_realized": 0.74335,
+          "abs_gap": 0.00725,
+          "count": 1880504
+        },
+        {
+          "pred_decile": 5,
+          "pred_lo": 3.1571,
+          "pred_hi": 3.5227,
+          "mean_pred_prob": 0.72254,
+          "mean_realized": 0.72048,
+          "abs_gap": 0.00206,
+          "count": 1880640
+        },
+        {
+          "pred_decile": 6,
+          "pred_lo": 3.5227,
+          "pred_hi": 3.9842,
+          "mean_pred_prob": 0.69708,
+          "mean_realized": 0.69083,
+          "abs_gap": 0.00625,
+          "count": 1880565
+        },
+        {
+          "pred_decile": 7,
+          "pred_lo": 3.9842,
+          "pred_hi": 4.6636,
+          "mean_pred_prob": 0.7092,
+          "mean_realized": 0.72177,
+          "abs_gap": 0.01257,
+          "count": 1880484
+        },
+        {
+          "pred_decile": 8,
+          "pred_lo": 4.6636,
+          "pred_hi": 6.2202,
+          "mean_pred_prob": 0.74944,
+          "mean_realized": 0.74816,
+          "abs_gap": 0.00128,
+          "count": 1880660
+        },
+        {
+          "pred_decile": 9,
+          "pred_lo": 6.2202,
+          "pred_hi": "inf",
+          "mean_pred_prob": 0.81127,
+          "mean_realized": 0.82283,
+          "abs_gap": 0.01156,
+          "count": 1880570
+        }
+      ],
+      "best": [
+        {
+          "pred_decile": 0,
+          "pred_lo": -38.8852,
+          "pred_hi": -0.3188,
+          "mean_pred_prob": 0.5428,
+          "mean_realized": 0.53936,
+          "abs_gap": 0.00344,
+          "count": 1880570
+        },
+        {
+          "pred_decile": 1,
+          "pred_lo": -0.3188,
+          "pred_hi": 1.0191,
+          "mean_pred_prob": 0.62231,
+          "mean_realized": 0.6372,
+          "abs_gap": 0.01489,
+          "count": 1880570
+        },
+        {
+          "pred_decile": 2,
+          "pred_lo": 1.0191,
+          "pred_hi": 2.0459,
+          "mean_pred_prob": 0.65886,
+          "mean_realized": 0.63933,
+          "abs_gap": 0.01953,
+          "count": 1880372
+        },
+        {
+          "pred_decile": 3,
+          "pred_lo": 2.0459,
+          "pred_hi": 2.7673,
+          "mean_pred_prob": 0.68296,
+          "mean_realized": 0.67837,
+          "abs_gap": 0.00458,
+          "count": 1880763
+        },
+        {
+          "pred_decile": 4,
+          "pred_lo": 2.7673,
+          "pred_hi": 3.1571,
+          "mean_pred_prob": 0.69734,
+          "mean_realized": 0.74335,
+          "abs_gap": 0.04601,
+          "count": 1880504
+        },
+        {
+          "pred_decile": 5,
+          "pred_lo": 3.1571,
+          "pred_hi": 3.5227,
+          "mean_pred_prob": 0.70836,
+          "mean_realized": 0.72048,
+          "abs_gap": 0.01212,
+          "count": 1880640
+        },
+        {
+          "pred_decile": 6,
+          "pred_lo": 3.5227,
+          "pred_hi": 3.9842,
+          "mean_pred_prob": 0.71713,
+          "mean_realized": 0.69083,
+          "abs_gap": 0.0263,
+          "count": 1880565
+        },
+        {
+          "pred_decile": 7,
+          "pred_lo": 3.9842,
+          "pred_hi": 4.6636,
+          "mean_pred_prob": 0.7293,
+          "mean_realized": 0.72177,
+          "abs_gap": 0.00753,
+          "count": 1880484
+        },
+        {
+          "pred_decile": 8,
+          "pred_lo": 4.6636,
+          "pred_hi": 6.2202,
+          "mean_pred_prob": 0.75749,
+          "mean_realized": 0.74816,
+          "abs_gap": 0.00932,
+          "count": 1880660
+        },
+        {
+          "pred_decile": 9,
+          "pred_lo": 6.2202,
+          "pred_hi": "inf",
+          "mean_pred_prob": 0.82771,
+          "mean_realized": 0.82283,
+          "abs_gap": 0.00488,
+          "count": 1880570
+        }
+      ]
+    }
+  },
+  "recommendation": {
+    "recommended_method": "platt_linear",
+    "params": {
+      "type": "LogisticRegression (Platt)",
+      "features": "[predicted]",
+      "note": "standardize predicted before fit"
+    },
+    "rationale": "platt_linear minimizes LOYO Brier, beating the production 20-bin recipe by 0.00286 on Brier and ECE, and also improves log-loss by 0.00680. AUC is unchanged.",
+    "LOYO_Brier": 0.207779,
+    "LOYO_ECE": 0.016065,
+    "LOYO_MCE_guarded": 0.052989,
+    "LOYO_logloss": 0.60475,
+    "vs_production_baseline": {
+      "dBrier": -0.00286,
+      "dECE": -0.010673,
+      "dlogloss": -0.006799
+    },
+    "tail_handling": "The production tail clamp UNDER-calibrates high-conviction picks: the top-1% slice realizes WR=0.93672 but the 20-bin baseline assigns only 0.81831 (abs gap 0.11841). The recommended platt_linear maps that same slice to 0.91584 (abs gap 0.02088), closing most of the tail miscalibration. Use out_of_bounds=clip; linear extrapolation changes only a handful of rows (16 held-out rows exceeded the per-fold fit range, and only when 2018/2019 -- which hold the global max prediction -- are the held-out fold)."
+  }
+}

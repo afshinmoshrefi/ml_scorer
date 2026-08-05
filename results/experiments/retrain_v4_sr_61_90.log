@@ -1,0 +1,809 @@
+2026-06-08 15:51:29,789 ML Pattern Scorer V2 - Training Pipeline
+2026-06-08 15:51:29,790 ============================================================
+2026-06-08 15:51:29,790 Tier: 61_90 (daysOut 61-90)
+2026-06-08 15:51:29,790 Target: SR (actual_return)
+2026-06-08 15:51:29,790 VIX hurricane cutoff: 35
+2026-06-08 15:51:29,790 Against-season filter: OFF
+2026-06-08 15:51:29,794 FEATURE_COLS matches ml_scorer/config.py -- OK
+2026-06-08 15:51:29,806 Loading training data from C:/seasonals/ml_scorer/features\training_data_61_90.parquet (tier: 61_90)
+2026-06-08 15:52:08,319 Loaded 59,132,982 samples, 68 columns
+2026-06-08 15:52:08,320 Using 62 of 62 features
+2026-06-08 15:52:39,498 VIX hurricane filter (>35): removing 2,884,167 samples (4.9%)
+2026-06-08 15:53:45,582 Using 62 features
+2026-06-08 15:53:53,590 Memory: 24.08 GB
+2026-06-08 15:53:54,013 Regression target stats: mean=3.695%, std=14.258%
+2026-06-08 15:53:54,111 Base win rate: 0.6525
+2026-06-08 15:53:54,976 Year distribution:
+        count      mean        std
+year                              
+2000  1916512  4.985694  21.935295
+2001  1824315  3.260504  18.683678
+2002  1635460  0.595421  19.056812
+2003  2077584  5.481835  19.332949
+2004  2090885  3.374950  12.666570
+2005  2099148  4.059637  12.520094
+2006  2139587  4.030451  11.581347
+2007  2185816 -1.084658  13.110200
+2008  1505504 -3.494792  20.962337
+2009  1611740  6.554461  16.291887
+2010  2157456  6.614600  12.427560
+2011  2014738  2.551229  13.957921
+2012  2322384  3.808864  11.761728
+2013  2342538  3.816541  10.985119
+2014  2364151  4.837574   9.127357
+2015  2362870 -0.559431  10.910776
+2016  2393319  5.109289  11.913089
+2017  2399110  3.270619  10.160564
+2018  2389167  2.849766  11.479003
+2019  2420236  4.033857  11.851645
+2020  1974266  5.452340  18.857780
+2021  2415304  4.336062  11.905550
+2022  2392038  6.730318  12.021599
+2023  2414808  5.513409  14.040979
+2024  2417861  3.891181  12.260461
+2025  2382018  3.692784  14.929554
+2026-06-08 15:53:54,989 
+============================================================
+2026-06-08 15:53:54,989 OPTUNA HYPERPARAMETER TUNING (75 trials)
+2026-06-08 15:53:54,989 ============================================================
+2026-06-08 15:54:51,534 Subsampled training: 2,000,000 of 49,034,128
+2026-06-08 15:54:51,541 Tuning train: 2,000,000, val: 2,414,808
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[219]	valid_0's rmse: 13.3396
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[329]	valid_0's rmse: 13.5035
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[47]	valid_0's rmse: 13.5844
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[55]	valid_0's rmse: 13.4346
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[155]	valid_0's rmse: 13.7553
+Training until validation scores don't improve for 30 rounds
+Did not meet early stopping. Best iteration is:
+[495]	valid_0's rmse: 13.5582
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[185]	valid_0's rmse: 13.5381
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[70]	valid_0's rmse: 13.2473
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[53]	valid_0's rmse: 13.4096
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[183]	valid_0's rmse: 13.4672
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[163]	valid_0's rmse: 13.2653
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[60]	valid_0's rmse: 13.3072
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[155]	valid_0's rmse: 13.3506
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[134]	valid_0's rmse: 13.3686
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[118]	valid_0's rmse: 13.3619
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[59]	valid_0's rmse: 13.5096
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[252]	valid_0's rmse: 13.4637
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[107]	valid_0's rmse: 13.3552
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[58]	valid_0's rmse: 13.471
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[89]	valid_0's rmse: 13.3352
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[463]	valid_0's rmse: 13.3886
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[96]	valid_0's rmse: 13.43
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[208]	valid_0's rmse: 13.2897
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[129]	valid_0's rmse: 13.2997
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[238]	valid_0's rmse: 13.4109
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[129]	valid_0's rmse: 13.2603
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[119]	valid_0's rmse: 13.4172
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[58]	valid_0's rmse: 13.7216
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[158]	valid_0's rmse: 13.3651
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[145]	valid_0's rmse: 13.3752
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[229]	valid_0's rmse: 13.4102
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[121]	valid_0's rmse: 13.3413
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[184]	valid_0's rmse: 13.3363
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[113]	valid_0's rmse: 13.3595
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[201]	valid_0's rmse: 13.2187
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[85]	valid_0's rmse: 13.4488
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[57]	valid_0's rmse: 13.3409
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[110]	valid_0's rmse: 13.4048
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[95]	valid_0's rmse: 13.3858
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[63]	valid_0's rmse: 13.474
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[306]	valid_0's rmse: 13.3417
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[128]	valid_0's rmse: 13.3496
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[53]	valid_0's rmse: 13.4552
+Training until validation scores don't improve for 30 rounds
+Did not meet early stopping. Best iteration is:
+[498]	valid_0's rmse: 13.4876
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[126]	valid_0's rmse: 13.3355
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[98]	valid_0's rmse: 13.3478
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[94]	valid_0's rmse: 13.3783
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[173]	valid_0's rmse: 13.4454
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[353]	valid_0's rmse: 13.4797
+Training until validation scores don't improve for 30 rounds
+Did not meet early stopping. Best iteration is:
+[499]	valid_0's rmse: 13.4636
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[124]	valid_0's rmse: 13.5739
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[267]	valid_0's rmse: 13.3037
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[122]	valid_0's rmse: 13.4022
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[349]	valid_0's rmse: 13.2591
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[53]	valid_0's rmse: 13.5244
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[223]	valid_0's rmse: 13.2645
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[288]	valid_0's rmse: 13.4279
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[49]	valid_0's rmse: 13.4185
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[134]	valid_0's rmse: 13.3633
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[65]	valid_0's rmse: 13.48
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[165]	valid_0's rmse: 13.2894
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[155]	valid_0's rmse: 13.2167
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[123]	valid_0's rmse: 13.4389
+Training until validation scores don't improve for 30 rounds2026-06-08 16:10:07,379 Optuna completed in 914.5s
+2026-06-08 16:10:07,379 Best RMSE: 13.2167
+2026-06-08 16:10:07,380 Best params: {
+  "num_leaves": 56,
+  "learning_rate": 0.0495597831072752,
+  "min_child_samples": 399,
+  "feature_fraction": 0.6765657904991891,
+  "bagging_fraction": 0.8707328477406107,
+  "lambda_l1": 0.4022212977962134,
+  "lambda_l2": 0.002221452507623973
+}
+2026-06-08 16:10:08,778 Params saved to C:/seasonals/ml_scorer/results\v2_tuned_params_61_90.json
+2026-06-08 16:10:08,778 
+============================================================
+OPTUNA XGBOOST (37 trials, multi-window AUC)
+============================================================
+2026-06-08 16:10:44,115   Tuning arrays: train=1,500,000 (<= 2020), val years=[2021, 2022, 2023, 2024]
+2026-06-08 16:26:57,581 XGB best mean-AUC=0.5640 in 969s; saved C:/seasonals/ml_scorer/results\v2_tuned_params_xgb_61_90.json
+2026-06-08 16:26:57,887 
+============================================================
+OPTUNA CATBOOST (25 trials, multi-window AUC)
+============================================================
+2026-06-08 16:27:29,904   Tuning arrays: train=1,500,000 (<= 2020), val years=[2021, 2022, 2023, 2024]
+2026-06-08 16:38:10,393 CatBoost best mean-AUC=0.5778 in 640s; saved C:/seasonals/ml_scorer/results\v2_tuned_params_catboost_61_90.json
+2026-06-08 16:38:10,552 
+
+PHASE 1: Standard Walk-Forward Validation (3-model ensemble)
+2026-06-08 16:38:10,563 
+============================================================
+2026-06-08 16:38:10,563 Window: Train 2000-2017, Validate 2018
+2026-06-08 16:38:10,563 ============================================================
+2026-06-08 16:38:28,672 Train: 37,443,117 samples (mean ret: 3.269%)
+2026-06-08 16:38:28,674 Val:   2,389,167 samples (mean ret: 2.850%, win rate: 0.6810)
+2026-06-08 16:38:28,674 Training LightGBM...
+2026-06-08 16:39:18,937   LGB best iteration: 1
+2026-06-08 16:39:18,937 Training XGBoost...
+
+Early stopping, best iteration is:
+[63]	valid_0's rmse: 13.488
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[104]	valid_0's rmse: 13.291
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[219]	valid_0's rmse: 13.4258
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[188]	valid_0's rmse: 13.3905
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[57]	valid_0's rmse: 13.4324
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[174]	valid_0's rmse: 13.3513
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[227]	valid_0's rmse: 13.4319
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[86]	valid_0's rmse: 13.4603
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[53]	valid_0's rmse: 13.5901
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[126]	valid_0's rmse: 13.2611
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[102]	valid_0's rmse: 13.359
+Training until validation scores don't improve for 30 rounds
+Early stopping, best iteration is:
+[45]	valid_0's rmse: 13.4485
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[1]	valid_0's rmse: 11.4944
+[0]	val-rmse:11.49141
+[52]	val-rmse:11.66867
+2026-06-08 16:42:06,682   XGB best iteration: 2
+2026-06-08 16:42:06,701 Training CatBoost...
+2026-06-08 16:43:51,221   CatBoost best iteration: 0
+2026-06-08 16:43:51,221 All 3 models trained in 322.5s
+2026-06-08 16:43:56,347 Val metrics (ensemble): AUC=0.4024, RMSE=11.5416, Acc=0.6810
+2026-06-08 16:43:56,347   LGB only: AUC=0.4209, XGB only: AUC=0.4093, CB only: AUC=0.6266
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 16:43:57,165 
+Trading performance (2018):
+2026-06-08 16:43:57,166   baseline  : 2389167 trades, win=0.681, avg_ret=2.85%, sharpe=3.94
+2026-06-08 16:43:57,166   ML_50     : 1194586 trades, win=0.609, avg_ret=0.91%, sharpe=1.18
+2026-06-08 16:43:57,166   ML_60     : 955663 trades, win=0.584, avg_ret=0.25%, sharpe=0.32
+2026-06-08 16:43:57,166   ML_70     : 716745 trades, win=0.557, avg_ret=-0.47%, sharpe=-0.59
+2026-06-08 16:43:57,166   ML_80     : 477838 trades, win=0.540, avg_ret=-1.05%, sharpe=-1.26
+2026-06-08 16:43:57,166   ML_85     : 358375 trades, win=0.528, avg_ret=-1.45%, sharpe=-1.71
+2026-06-08 16:43:57,166   ML_90     : 238919 trades, win=0.498, avg_ret=-2.31%, sharpe=-2.64
+2026-06-08 16:43:57,166   ML_pos    : 2389167 trades, win=0.681, avg_ret=2.85%, sharpe=3.94
+2026-06-08 16:44:03,886   Saved 2,389,167 predictions for calibration
+2026-06-08 16:44:05,057 
+============================================================
+2026-06-08 16:44:05,057 Window: Train 2000-2018, Validate 2019
+2026-06-08 16:44:05,057 ============================================================
+2026-06-08 16:46:07,318 Train: 39,832,284 samples (mean ret: 3.243%)
+2026-06-08 16:46:07,340 Val:   2,420,236 samples (mean ret: 4.034%, win rate: 0.7004)
+2026-06-08 16:46:07,340 Training LightGBM...
+2026-06-08 16:47:15,402   LGB best iteration: 4
+2026-06-08 16:47:15,402 Training XGBoost...
+0:	learn: 14.4653647	test: 11.4887292	best: 11.4887292 (0)	total: 1.77s	remaining: 59m 9s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 11.48872923
+bestIteration = 0
+
+Shrink model to first 1 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[4]	valid_0's rmse: 11.885
+[0]	val-rmse:11.88030
+[50]	val-rmse:12.42490
+2026-06-08 16:49:58,726   XGB best iteration: 0
+2026-06-08 16:49:58,745 Training CatBoost...
+2026-06-08 16:51:44,893   CatBoost best iteration: 1
+2026-06-08 16:51:44,893 All 3 models trained in 337.6s
+2026-06-08 16:51:50,559 Val metrics (ensemble): AUC=0.5037, RMSE=12.0074, Acc=0.7002
+2026-06-08 16:51:50,559   LGB only: AUC=0.5580, XGB only: AUC=0.4839, CB only: AUC=0.5343
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 16:51:51,383 
+Trading performance (2019):
+2026-06-08 16:51:51,384   baseline  : 2420236 trades, win=0.700, avg_ret=4.03%, sharpe=5.40
+2026-06-08 16:51:51,384   ML_50     : 1210118 trades, win=0.704, avg_ret=4.02%, sharpe=5.66
+2026-06-08 16:51:51,384   ML_60     : 968095 trades, win=0.736, avg_ret=4.71%, sharpe=6.79
+2026-06-08 16:51:51,384   ML_70     : 726060 trades, win=0.775, avg_ret=5.69%, sharpe=8.74
+2026-06-08 16:51:51,384   ML_80     : 484043 trades, win=0.788, avg_ret=6.18%, sharpe=9.18
+2026-06-08 16:51:51,384   ML_85     : 363025 trades, win=0.792, avg_ret=6.48%, sharpe=9.33
+2026-06-08 16:51:51,384   ML_90     : 242011 trades, win=0.795, avg_ret=6.78%, sharpe=9.44
+2026-06-08 16:51:51,384   ML_pos    : 2419789 trades, win=0.700, avg_ret=4.03%, sharpe=5.40
+2026-06-08 16:51:57,469   Saved 2,420,236 predictions for calibration
+2026-06-08 16:51:58,931 
+============================================================
+2026-06-08 16:51:58,931 Window: Train 2000-2019, Validate 2020
+2026-06-08 16:51:58,931 ============================================================
+2026-06-08 16:54:06,483 Train: 42,252,520 samples (mean ret: 3.289%)
+2026-06-08 16:54:06,507 Val:   1,974,266 samples (mean ret: 5.452%, win rate: 0.6777)
+2026-06-08 16:54:06,507 Training LightGBM...
+2026-06-08 16:56:48,968   LGB best iteration: 106
+2026-06-08 16:56:48,968 Training XGBoost...
+0:	learn: 14.3072522	test: 11.8832853	best: 11.8832853 (0)	total: 1.89s	remaining: 1h 3m 5s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 11.88237888
+bestIteration = 1
+
+Shrink model to first 2 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 17.3665
+Early stopping, best iteration is:
+[106]	valid_0's rmse: 17.3448
+[0]	val-rmse:18.97252
+[100]	val-rmse:17.84765
+[200]	val-rmse:17.50842
+[300]	val-rmse:17.36438
+[400]	val-rmse:17.26771
+[500]	val-rmse:17.18959
+[600]	val-rmse:17.14056
+[700]	val-rmse:17.10582
+[800]	val-rmse:17.07662
+[900]	val-rmse:17.05997
+[1000]	val-rmse:17.04570
+[1100]	val-rmse:17.02274
+[1200]	val-rmse:17.00009
+[1300]	val-rmse:16.98979
+[1301]	val-rmse:16.98920
+2026-06-08 17:33:13,217   XGB best iteration: 1251
+2026-06-08 17:33:13,245 Training CatBoost...
+2026-06-08 17:46:40,676   CatBoost best iteration: 425
+2026-06-08 17:46:40,676 All 3 models trained in 3154.2s
+2026-06-08 17:46:55,916 Val metrics (ensemble): AUC=0.7583, RMSE=17.0117, Acc=0.6913
+2026-06-08 17:46:55,916   LGB only: AUC=0.7235, XGB only: AUC=0.7514, CB only: AUC=0.7662
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 17:46:56,724 
+Trading performance (2020):
+2026-06-08 17:46:56,737   baseline  : 1974266 trades, win=0.678, avg_ret=5.45%, sharpe=4.59
+2026-06-08 17:46:56,737   ML_50     : 987134 trades, win=0.855, avg_ret=13.25%, sharpe=12.99
+2026-06-08 17:46:56,737   ML_60     : 789707 trades, win=0.879, avg_ret=14.77%, sharpe=14.34
+2026-06-08 17:46:56,737   ML_70     : 592280 trades, win=0.902, avg_ret=16.63%, sharpe=15.71
+2026-06-08 17:46:56,737   ML_80     : 394854 trades, win=0.928, avg_ret=19.51%, sharpe=17.47
+2026-06-08 17:46:56,737   ML_85     : 296140 trades, win=0.938, avg_ret=21.56%, sharpe=18.55
+2026-06-08 17:46:56,737   ML_90     : 197427 trades, win=0.944, avg_ret=24.14%, sharpe=19.50
+2026-06-08 17:46:56,737   ML_pos    : 1723029 trades, win=0.711, avg_ret=6.91%, sharpe=5.89
+2026-06-08 17:47:03,971   Saved 1,974,266 predictions for calibration
+2026-06-08 17:47:05,527 
+============================================================
+2026-06-08 17:47:05,527 Window: Train 2000-2020, Validate 2021
+2026-06-08 17:47:05,527 ============================================================
+2026-06-08 17:49:32,589 Train: 44,226,786 samples (mean ret: 3.385%)
+2026-06-08 17:49:32,618 Val:   2,415,304 samples (mean ret: 4.336%, win rate: 0.6882)
+2026-06-08 17:49:32,618 Training LightGBM...
+2026-06-08 17:51:25,260   LGB best iteration: 45
+2026-06-08 17:51:25,284 Training XGBoost...
+0:	learn: 14.1960303	test: 18.8537258	best: 18.8537258 (0)	total: 1.81s	remaining: 1h 23s
+100:	learn: 11.9370925	test: 17.4713803	best: 17.4556648 (90)	total: 2m 54s	remaining: 54m 38s
+200:	learn: 11.4103605	test: 17.1970844	best: 17.1950271 (195)	total: 5m 40s	remaining: 50m 48s
+300:	learn: 11.0829391	test: 17.0390156	best: 17.0390156 (300)	total: 8m 20s	remaining: 47m 6s
+400:	learn: 10.8228341	test: 16.9449471	best: 16.9398880 (366)	total: 11m 1s	remaining: 43m 59s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 16.90797491
+bestIteration = 425
+
+Shrink model to first 426 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[45]	valid_0's rmse: 11.5917
+[0]	val-rmse:11.92769
+[100]	val-rmse:11.63064
+[199]	val-rmse:11.65109
+2026-06-08 18:00:09,388   XGB best iteration: 149
+2026-06-08 18:00:09,424 Training CatBoost...
+2026-06-08 18:04:17,336   CatBoost best iteration: 62
+2026-06-08 18:04:17,336 All 3 models trained in 884.7s
+2026-06-08 18:04:25,086 Val metrics (ensemble): AUC=0.5861, RMSE=11.6155, Acc=0.6816
+2026-06-08 18:04:25,087   LGB only: AUC=0.5906, XGB only: AUC=0.5836, CB only: AUC=0.5836
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 18:04:25,964 
+Trading performance (2021):
+2026-06-08 18:04:25,965   baseline  : 2415304 trades, win=0.688, avg_ret=4.34%, sharpe=5.78
+2026-06-08 18:04:25,965   ML_50     : 1207652 trades, win=0.735, avg_ret=6.20%, sharpe=7.64
+2026-06-08 18:04:25,965   ML_60     : 966122 trades, win=0.736, avg_ret=6.32%, sharpe=7.60
+2026-06-08 18:04:25,965   ML_70     : 724591 trades, win=0.740, avg_ret=6.57%, sharpe=7.72
+2026-06-08 18:04:25,965   ML_80     : 483064 trades, win=0.750, avg_ret=7.07%, sharpe=7.97
+2026-06-08 18:04:25,965   ML_85     : 362296 trades, win=0.758, avg_ret=7.52%, sharpe=8.24
+2026-06-08 18:04:25,965   ML_90     : 241531 trades, win=0.769, avg_ret=8.10%, sharpe=8.54
+2026-06-08 18:04:25,965   ML_pos    : 2006184 trades, win=0.723, avg_ret=5.47%, sharpe=7.45
+2026-06-08 18:04:32,455   Saved 2,415,304 predictions for calibration
+2026-06-08 18:04:34,108 
+============================================================
+2026-06-08 18:04:34,108 Window: Train 2000-2021, Validate 2022
+2026-06-08 18:04:34,108 ============================================================
+2026-06-08 18:06:58,573 Train: 46,642,090 samples (mean ret: 3.435%)
+2026-06-08 18:06:59,034 Val:   2,392,038 samples (mean ret: 6.730%, win rate: 0.7966)
+2026-06-08 18:06:59,034 Training LightGBM...
+2026-06-08 18:08:19,593   LGB best iteration: 4
+2026-06-08 18:08:19,593 Training XGBoost...
+0:	learn: 14.4194894	test: 11.9326713	best: 11.9326713 (0)	total: 2.11s	remaining: 1h 10m 16s
+100:	learn: 12.0423768	test: 11.6889229	best: 11.6549831 (62)	total: 3m 12s	remaining: 1h 25s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 11.65498307
+bestIteration = 62
+
+Shrink model to first 63 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[4]	valid_0's rmse: 12.3594
+[0]	val-rmse:12.45425
+[61]	val-rmse:12.56529
+2026-06-08 18:12:48,932   XGB best iteration: 11
+2026-06-08 18:12:48,967 Training CatBoost...
+2026-06-08 18:15:44,269   CatBoost best iteration: 14
+2026-06-08 18:15:44,270 All 3 models trained in 525.2s
+2026-06-08 18:15:50,030 Val metrics (ensemble): AUC=0.5049, RMSE=12.3886, Acc=0.7841
+2026-06-08 18:15:50,030   LGB only: AUC=0.5205, XGB only: AUC=0.4645, CB only: AUC=0.5190
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 18:15:50,913 
+Trading performance (2022):
+2026-06-08 18:15:50,914   baseline  : 2392038 trades, win=0.797, avg_ret=6.73%, sharpe=8.89
+2026-06-08 18:15:50,914   ML_50     : 1196024 trades, win=0.807, avg_ret=7.76%, sharpe=9.73
+2026-06-08 18:15:50,914   ML_60     : 956822 trades, win=0.825, avg_ret=8.59%, sharpe=10.79
+2026-06-08 18:15:50,914   ML_70     : 717609 trades, win=0.849, avg_ret=9.55%, sharpe=11.91
+2026-06-08 18:15:50,914   ML_80     : 478410 trades, win=0.870, avg_ret=10.97%, sharpe=13.23
+2026-06-08 18:15:50,914   ML_85     : 358803 trades, win=0.880, avg_ret=11.65%, sharpe=13.91
+2026-06-08 18:15:50,914   ML_90     : 239204 trades, win=0.895, avg_ret=12.68%, sharpe=14.73
+2026-06-08 18:15:50,914   ML_pos    : 2354326 trades, win=0.795, avg_ret=6.66%, sharpe=8.80
+2026-06-08 18:15:57,335   Saved 2,392,038 predictions for calibration
+2026-06-08 18:15:59,004 
+============================================================
+2026-06-08 18:15:59,004 Window: Train 2000-2022, Validate 2023
+2026-06-08 18:15:59,004 ============================================================
+2026-06-08 18:18:39,508 Train: 49,034,128 samples (mean ret: 3.595%)
+2026-06-08 18:18:39,581 Val:   2,414,808 samples (mean ret: 5.513%, win rate: 0.7023)
+2026-06-08 18:18:39,581 Training LightGBM...
+2026-06-08 18:22:03,006   LGB best iteration: 138
+2026-06-08 18:22:03,008 Training XGBoost...
+0:	learn: 14.3022688	test: 12.5032805	best: 12.5032805 (0)	total: 2.33s	remaining: 1h 17m 36s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 12.43091243
+bestIteration = 14
+
+Shrink model to first 15 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 13.4259
+Early stopping, best iteration is:
+[138]	valid_0's rmse: 13.3882
+[0]	val-rmse:14.15861
+[100]	val-rmse:13.71762
+[200]	val-rmse:13.56635
+[300]	val-rmse:13.47170
+[400]	val-rmse:13.43494
+[500]	val-rmse:13.42004
+[572]	val-rmse:13.41824
+2026-06-08 18:44:00,664   XGB best iteration: 522
+2026-06-08 18:44:00,695 Training CatBoost...
+2026-06-08 18:50:31,661   CatBoost best iteration: 118
+2026-06-08 18:50:31,661 All 3 models trained in 1912.1s
+2026-06-08 18:50:44,109 Val metrics (ensemble): AUC=0.6631, RMSE=13.4169, Acc=0.7045
+2026-06-08 18:50:44,109   LGB only: AUC=0.6605, XGB only: AUC=0.6459, CB only: AUC=0.6330
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: invalid value encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: invalid value encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 18:50:45,028 
+Trading performance (2023):
+2026-06-08 18:50:45,029   baseline  : 2414808 trades, win=0.702, avg_ret=5.51%, sharpe=6.23
+2026-06-08 18:50:45,029   ML_50     : 1207405 trades, win=0.800, avg_ret=9.17%, sharpe=9.75
+2026-06-08 18:50:45,029   ML_60     : 965924 trades, win=0.822, avg_ret=10.19%, sharpe=10.37
+2026-06-08 18:50:45,029   ML_70     : 724443 trades, win=0.845, avg_ret=11.55%, sharpe=11.02
+2026-06-08 18:50:45,029   ML_80     : 482962 trades, win=0.869, avg_ret=13.45%, sharpe=11.59
+2026-06-08 18:50:45,029   ML_85     : 362222 trades, win=0.884, avg_ret=14.85%, sharpe=11.85
+2026-06-08 18:50:45,029   ML_90     : 241481 trades, win=0.898, avg_ret=16.66%, sharpe=11.88
+2026-06-08 18:50:45,029   ML_pos    : 2128243 trades, win=0.731, avg_ret=6.49%, sharpe=7.41
+2026-06-08 18:50:50,637   Saved 2,414,808 predictions for calibration
+2026-06-08 18:50:52,458 
+============================================================
+2026-06-08 18:50:52,458 Window: Train 2000-2023, Validate 2024
+2026-06-08 18:50:52,458 ============================================================
+2026-06-08 18:53:27,240 Train: 51,448,936 samples (mean ret: 3.685%)
+2026-06-08 18:53:27,283 Val:   2,417,861 samples (mean ret: 3.891%, win rate: 0.6652)
+2026-06-08 18:53:27,283 Training LightGBM...
+2026-06-08 18:55:31,509   LGB best iteration: 23
+2026-06-08 18:55:31,534 Training XGBoost...
+0:	learn: 14.2209655	test: 14.1492102	best: 14.1492102 (0)	total: 2.24s	remaining: 1h 14m 32s
+100:	learn: 11.9352908	test: 13.6237540	best: 13.6079735 (95)	total: 3m 30s	remaining: 1h 5m 53s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 13.60786513
+bestIteration = 118
+
+Shrink model to first 119 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[23]	valid_0's rmse: 12.0324
+[0]	val-rmse:12.26149
+[100]	val-rmse:12.10300
+[200]	val-rmse:11.97511
+[300]	val-rmse:11.93754
+[377]	val-rmse:11.93573
+2026-06-08 19:12:56,225   XGB best iteration: 327
+2026-06-08 19:12:56,259 Training CatBoost...
+2026-06-08 19:15:59,220   CatBoost best iteration: 8
+2026-06-08 19:15:59,221 All 3 models trained in 1351.9s
+2026-06-08 19:16:07,995 Val metrics (ensemble): AUC=0.6283, RMSE=11.9201, Acc=0.6637
+2026-06-08 19:16:07,995   LGB only: AUC=0.5991, XGB only: AUC=0.6440, CB only: AUC=0.5052
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 19:16:08,900 
+Trading performance (2024):
+2026-06-08 19:16:08,903   baseline  : 2417861 trades, win=0.665, avg_ret=3.89%, sharpe=5.04
+2026-06-08 19:16:08,903   ML_50     : 1208931 trades, win=0.757, avg_ret=6.32%, sharpe=7.83
+2026-06-08 19:16:08,903   ML_60     : 967145 trades, win=0.775, avg_ret=6.95%, sharpe=8.41
+2026-06-08 19:16:08,903   ML_70     : 725359 trades, win=0.784, avg_ret=7.60%, sharpe=8.75
+2026-06-08 19:16:08,903   ML_80     : 483573 trades, win=0.788, avg_ret=8.45%, sharpe=9.03
+2026-06-08 19:16:08,903   ML_85     : 362680 trades, win=0.788, avg_ret=9.06%, sharpe=9.18
+2026-06-08 19:16:08,903   ML_90     : 241787 trades, win=0.791, avg_ret=9.95%, sharpe=9.42
+2026-06-08 19:16:08,903   ML_pos    : 2308745 trades, win=0.672, avg_ret=4.03%, sharpe=5.23
+2026-06-08 19:16:14,571   Saved 2,417,861 predictions for calibration
+2026-06-08 19:16:16,433 
+============================================================
+2026-06-08 19:16:16,433 Window: Train 2000-2024, Validate 2025
+2026-06-08 19:16:16,433 ============================================================
+2026-06-08 19:19:05,070 Train: 53,866,797 samples (mean ret: 3.695%)
+2026-06-08 19:19:05,242 Val:   2,382,018 samples (mean ret: 3.693%, win rate: 0.6390)
+2026-06-08 19:19:05,242 Training LightGBM...
+2026-06-08 19:24:41,328   LGB best iteration: 231
+2026-06-08 19:24:41,343 Training XGBoost...
+0:	learn: 14.2048596	test: 12.2462941	best: 12.2462941 (0)	total: 2.62s	remaining: 1h 27m 24s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 12.15213471
+bestIteration = 8
+
+Shrink model to first 9 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 14.5329
+[200]	valid_0's rmse: 14.3684
+Early stopping, best iteration is:
+[231]	valid_0's rmse: 14.3476
+[0]	val-rmse:14.92482
+[100]	val-rmse:14.80102
+[102]	val-rmse:14.79925
+2026-06-08 19:31:17,251   XGB best iteration: 52
+2026-06-08 19:31:17,295 Training CatBoost...
+2026-06-08 19:46:02,204   CatBoost best iteration: 308
+2026-06-08 19:46:02,204 All 3 models trained in 1617.0s
+2026-06-08 19:46:11,875 Val metrics (ensemble): AUC=0.7050, RMSE=14.3492, Acc=0.6921
+2026-06-08 19:46:11,875   LGB only: AUC=0.7057, XGB only: AUC=0.5922, CB only: AUC=0.7144
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 19:46:12,905 
+Trading performance (2025):
+2026-06-08 19:46:12,906   baseline  : 2382018 trades, win=0.639, avg_ret=3.69%, sharpe=3.93
+2026-06-08 19:46:12,906   ML_50     : 1191010 trades, win=0.777, avg_ret=7.79%, sharpe=8.68
+2026-06-08 19:46:12,906   ML_60     : 952808 trades, win=0.794, avg_ret=8.57%, sharpe=9.36
+2026-06-08 19:46:12,906   ML_70     : 714606 trades, win=0.814, avg_ret=9.57%, sharpe=10.16
+2026-06-08 19:46:12,906   ML_80     : 476404 trades, win=0.831, avg_ret=10.88%, sharpe=10.99
+2026-06-08 19:46:12,906   ML_85     : 357303 trades, win=0.846, avg_ret=11.96%, sharpe=11.71
+2026-06-08 19:46:12,906   ML_90     : 238202 trades, win=0.865, avg_ret=13.66%, sharpe=12.79
+2026-06-08 19:46:12,906   ML_pos    : 1797881 trades, win=0.719, avg_ret=5.93%, sharpe=6.61
+2026-06-08 19:46:18,934   Saved 2,382,018 predictions for calibration
+2026-06-08 19:46:37,583 
+Saved 18,805,698 walk-forward predictions to C:/seasonals/ml_scorer/results\wf_predictions_sr_61_90_v4.parquet
+2026-06-08 19:46:37,584   Columns: ['val_year', 'predicted', 'pred_lgb', 'pred_xgb', 'pred_cb', 'actual_return', 'hit_target', 'date', 'symbol', 'daysOut', 'direction']
+2026-06-08 19:46:37,668   Val years: [np.int64(2018), np.int64(2019), np.int64(2020), np.int64(2021), np.int64(2022), np.int64(2023), np.int64(2024), np.int64(2025)]
+2026-06-08 19:46:38,010 
+============================================================
+2026-06-08 19:46:38,010 STANDARD WALK-FORWARD SUMMARY (target=SR)
+2026-06-08 19:46:38,010 ============================================================
+2026-06-08 19:46:38,010   2018: AUC=0.402, RMSE=11.5416, base_wr=0.681, best_ml_wr=0.681 (ML_pos, 2389167 trades), +0.0pp
+2026-06-08 19:46:38,010   2019: AUC=0.504, RMSE=12.0074, base_wr=0.700, best_ml_wr=0.795 (ML_90, 242011 trades), +9.5pp
+2026-06-08 19:46:38,010   2020: AUC=0.758, RMSE=17.0117, base_wr=0.678, best_ml_wr=0.944 (ML_90, 197427 trades), +26.6pp
+2026-06-08 19:46:38,010   2021: AUC=0.586, RMSE=11.6155, base_wr=0.688, best_ml_wr=0.769 (ML_90, 241531 trades), +8.0pp
+2026-06-08 19:46:38,010   2022: AUC=0.505, RMSE=12.3886, base_wr=0.797, best_ml_wr=0.895 (ML_90, 239204 trades), +9.8pp
+2026-06-08 19:46:38,010   2023: AUC=0.663, RMSE=13.4169, base_wr=0.702, best_ml_wr=0.898 (ML_90, 241481 trades), +19.5pp
+2026-06-08 19:46:38,010   2024: AUC=0.628, RMSE=11.9201, base_wr=0.665, best_ml_wr=0.791 (ML_90, 241787 trades), +12.6pp
+2026-06-08 19:46:38,010   2025: AUC=0.705, RMSE=14.3492, base_wr=0.639, best_ml_wr=0.865 (ML_90, 238202 trades), +22.6pp
+2026-06-08 19:46:38,034 
+Skipping final model training (--wf-only)
+2026-06-08 19:46:38,047 
+Results saved to C:/seasonals/ml_scorer/results\v2_walk_forward_results_61_90_v4.json
+2026-06-08 19:46:38,047 
+Building calibration tables from C:/seasonals/ml_scorer/results\wf_predictions_sr_61_90_v4.parquet
+2026-06-08 19:46:39,353   Loaded 18,805,698 samples, columns: ['val_year', 'predicted', 'pred_lgb', 'pred_xgb', 'pred_cb', 'actual_return', 'hit_target', 'date', 'symbol', 'daysOut', 'direction']
+2026-06-08 19:46:42,265 
+  Calibration table (sr):
+2026-06-08 19:46:42,265    Bin           Pred Range        N  WinProb   P(Hit)
+2026-06-08 19:46:42,265      0 [ -43.76,   -1.39]  940,285    0.451    0.556
+2026-06-08 19:46:42,265      1 [  -1.39,    0.26]  940,285    0.499    0.516
+2026-06-08 19:46:42,265      2 [   0.26,    1.28]  940,286    0.636    0.604
+2026-06-08 19:46:42,265      3 [   1.28,    1.81]  940,298    0.704    0.640
+2026-06-08 19:46:42,265      4 [   1.81,    2.26]  940,273    0.656    0.563
+2026-06-08 19:46:42,265      5 [   2.26,    2.55]  940,283    0.616    0.510
+2026-06-08 19:46:42,265      6 [   2.55,    2.85]  940,284    0.662    0.538
+2026-06-08 19:46:42,265      7 [   2.85,    3.01]  940,294    0.722    0.580
+2026-06-08 19:46:42,265      8 [   3.01,    3.12]  940,277    0.739    0.585
+2026-06-08 19:46:42,265      9 [   3.12,    3.26]  940,284    0.700    0.535
+2026-06-08 19:46:42,265     10 [   3.26,    3.41]  940,285    0.672    0.513
+2026-06-08 19:46:42,265     11 [   3.41,    3.65]  940,285    0.675    0.510
+2026-06-08 19:46:42,265     12 [   3.65,    3.93]  940,285    0.668    0.494
+2026-06-08 19:46:42,265     13 [   3.93,    4.27]  940,284    0.718    0.532
+2026-06-08 19:46:42,265     14 [   4.27,    4.62]  940,285    0.750    0.557
+2026-06-08 19:46:42,265     15 [   4.62,    5.04]  940,293    0.776    0.581
+2026-06-08 19:46:42,265     16 [   5.04,    5.63]  940,277    0.785    0.591
+2026-06-08 19:46:42,265     17 [   5.63,    6.54]  940,285    0.781    0.575
+2026-06-08 19:46:42,265     18 [   6.54,    8.14]  940,285    0.797    0.554
+2026-06-08 19:46:42,265     19 [   8.14,   52.53]  940,285    0.877    0.596
+2026-06-08 19:46:46,483   Platt win_prob: sigmoid(0.15495 * pred + 0.32924)
+2026-06-08 19:46:46,484 
+  Saved calibration to C:/seasonals/ml_scorer/results\calibration_sr_61_90_v4.json
+2026-06-08 19:46:46,556 
+V2 Training Complete!
+0:	learn: 14.1223411	test: 14.9377638	best: 14.9377638 (0)	total: 2.78s	remaining: 1h 32m 36s
+100:	learn: 11.9322705	test: 14.2759951	best: 14.2140565 (83)	total: 4m 5s	remaining: 1h 17m 3s
+200:	learn: 11.4390807	test: 14.1830526	best: 14.1830526 (200)	total: 7m 57s	remaining: 1h 11m 17s
+300:	learn: 11.1196256	test: 14.1317690	best: 14.1106022 (284)	total: 11m 45s	remaining: 1h 6m 20s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 14.10998386
+bestIteration = 308
+
+Shrink model to first 309 iterations.

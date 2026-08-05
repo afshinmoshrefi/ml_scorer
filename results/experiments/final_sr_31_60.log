@@ -1,0 +1,166 @@
+2026-06-08 20:13:55,983 ML Pattern Scorer V2 - Training Pipeline
+2026-06-08 20:13:55,983 ============================================================
+2026-06-08 20:13:55,984 Tier: 31_60 (daysOut 31-60)
+2026-06-08 20:13:55,984 Target: SR (actual_return)
+2026-06-08 20:13:55,984 VIX hurricane cutoff: 35
+2026-06-08 20:13:55,984 Against-season filter: OFF
+2026-06-08 20:13:55,987 FEATURE_COLS matches ml_scorer/config.py -- OK
+2026-06-08 20:13:56,050 Loading training data from C:/seasonals/ml_scorer/features\training_data_31_60.parquet (tier: 31_60)
+2026-06-08 20:14:24,843 Loaded 54,414,260 samples, 68 columns
+2026-06-08 20:14:24,846 Using 62 of 62 features
+2026-06-08 20:15:09,865 VIX hurricane filter (>35): removing 2,630,682 samples (4.8%)
+2026-06-08 20:15:58,072 Using 62 features
+2026-06-08 20:16:05,308 Memory: 22.17 GB
+2026-06-08 20:16:05,680 Regression target stats: mean=2.446%, std=11.161%
+2026-06-08 20:16:05,767 Base win rate: 0.6328
+2026-06-08 20:16:06,552 Year distribution:
+        count      mean        std
+year                              
+2000  1770775  3.565573  17.885384
+2001  1699872  1.732930  15.763348
+2002  1506448  2.099447  15.774475
+2003  1918016  2.844869  14.067779
+2004  1931127  1.777991   9.975195
+2005  1940007  2.232985   9.716774
+2006  1976057  2.790989   9.107597
+2007  2018750 -1.222173  10.014753
+2008  1387002  0.729935  15.829795
+2009  1463138  3.729133  12.790482
+2010  2002145  4.115321   9.530636
+2011  1877262  0.955195  10.630683
+2012  2136842  1.936025   9.031066
+2013  2154000  1.939234   8.387473
+2014  2176138  3.424547   7.399171
+2015  2176194 -0.164816   8.933282
+2016  2193852  3.198046   9.349567
+2017  2199730  1.627020   7.748109
+2018  2186661  2.522403   8.863966
+2019  2219489  2.588421   8.989235
+2020  1827482  2.151294  15.526927
+2021  2214481  3.460572   9.309694
+2022  2190543  6.389239  10.307451
+2023  2212148  3.256366  10.224497
+2024  2218574  3.171038   9.720561
+2025  2186845  2.001954  11.237841
+2026-06-08 20:16:06,576 Loading saved params from C:/seasonals/ml_scorer/results\v2_tuned_params_31_60.json
+2026-06-08 20:16:06,811 Params: {
+  "objective": "regression",
+  "metric": "rmse",
+  "boosting_type": "gbdt",
+  "verbose": -1,
+  "n_jobs": -1,
+  "seed": 42,
+  "bagging_freq": 5,
+  "max_bin": 255,
+  "num_leaves": 48,
+  "learning_rate": 0.07975220328336957,
+  "min_child_samples": 482,
+  "feature_fraction": 0.6503442265952093,
+  "bagging_fraction": 0.7688409162953814,
+  "lambda_l1": 0.5951227599584381,
+  "lambda_l2": 0.2901524322399836
+}
+2026-06-08 20:16:06,811 Skipping walk-forward validation (--final-only)
+2026-06-08 20:16:06,831 
+
+PHASE 2: Final Ensemble Training
+2026-06-08 20:16:06,831 
+============================================================
+2026-06-08 20:16:06,831 Training FINAL ensemble (2000-2024)
+2026-06-08 20:16:06,831 ============================================================
+2026-06-08 20:16:40,691 Train: 49,596,733 samples
+2026-06-08 20:16:40,724 Val (2025 holdout): 2,186,845 samples
+2026-06-08 20:16:40,751 Training final LightGBM...
+2026-06-08 20:20:37,365 LGB saved: C:/seasonals/ml_scorer/models\v2_lgb_31_60_20260608.txt (best iter: 223)
+2026-06-08 20:20:37,365 Training final XGBoost...
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 10.5449
+[200]	valid_0's rmse: 10.4927
+Early stopping, best iteration is:
+[223]	valid_0's rmse: 10.4876
+[0]	val-rmse:11.24476
+[100]	val-rmse:11.08014
+[200]	val-rmse:11.02402
+[300]	val-rmse:10.96150
+[400]	val-rmse:10.90683
+[500]	val-rmse:10.86179
+[600]	val-rmse:10.83845
+[700]	val-rmse:10.80330
+[800]	val-rmse:10.76989
+[900]	val-rmse:10.75565
+[1000]	val-rmse:10.74697
+[1100]	val-rmse:10.72988
+[1200]	val-rmse:10.72049
+[1278]	val-rmse:10.71596
+2026-06-08 20:44:31,280 XGB saved: C:/seasonals/ml_scorer/models\v2_xgb_31_60_20260608.json (best iter: 1228)
+2026-06-08 20:44:31,295 Training final CatBoost...
+2026-06-08 20:50:02,932 CatBoost saved: C:/seasonals/ml_scorer/models\v2_catboost_31_60_20260608.cbm (best iter: 93)
+2026-06-08 20:50:02,932 Final ensemble trained in 2002.2s
+2026-06-08 20:50:02,947 Feature count validation: expected=62, LGB=62, XGB=62, CatBoost=62
+2026-06-08 20:50:03,352 
+Top 20 features by LGB gain:
+2026-06-08 20:50:03,382                          feature      lgb_gain  lgb_split
+32         mkt_yield_curve_10y2y  8.254620e+08        595
+42            mkt_fed_rate_level  7.584649e+08        727
+51         ctx_pct_from_52w_high  7.171329e+08        681
+54               cal_day_of_year  6.709860e+08        652
+34             mkt_credit_spread  6.124481e+08        480
+57                   cal_pe_year  6.114107e+08        348
+43        mkt_fed_rate_direction  5.350088e+08        478
+28                 mkt_vix_level  4.723045e+08        320
+2                  pat_direction  4.695029e+08        202
+1                pat_avg_profit2  3.932497e+08        353
+48          mkt_spx_seasonal_ret  3.383984e+08        262
+31        mkt_vix_term_structure  2.930411e+08        208
+52          ctx_pct_from_52w_low  2.750202e+08        465
+44                mkt_dxy_roc_20  2.437547e+08        195
+45                 mkt_cl_roc_20  2.149331e+08        188
+35  mkt_credit_spread_change_20d  2.067888e+08        168
+5          pat_depth_utilization  2.017592e+08        109
+58           pat_dir_x_mkt_trend  1.968688e+08        163
+3                 pat_data_years  1.618090e+08        362
+53                     cal_month  1.558056e+08        141
+2026-06-08 20:50:10,396 
+2025 holdout: AUC=0.7093, RMSE=10.6579, Acc=0.6602
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-08 20:50:11,125 
+2025 holdout trading performance:
+2026-06-08 20:50:11,125   baseline  : 2186845 trades, win=0.617, avg_ret=2.00%, sharpe=2.83
+2026-06-08 20:50:11,125   ML_50     : 1093423 trades, win=0.773, avg_ret=5.36%, sharpe=7.81
+2026-06-08 20:50:11,125   ML_60     : 874739 trades, win=0.801, avg_ret=6.16%, sharpe=8.94
+2026-06-08 20:50:11,125   ML_70     : 656054 trades, win=0.821, avg_ret=6.93%, sharpe=9.79
+2026-06-08 20:50:11,125   ML_80     : 437370 trades, win=0.834, avg_ret=7.89%, sharpe=10.52
+2026-06-08 20:50:11,125   ML_85     : 328027 trades, win=0.843, avg_ret=8.65%, sharpe=11.10
+2026-06-08 20:50:11,125   ML_90     : 218685 trades, win=0.857, avg_ret=9.86%, sharpe=12.06
+2026-06-08 20:50:11,125   ML_pos    : 1892214 trades, win=0.660, avg_ret=3.04%, sharpe=4.43
+2026-06-08 20:50:11,168 
+Calibration range check:
+2026-06-08 20:50:11,168   WF calibration range: [-32.2552, 51.0574]
+2026-06-08 20:50:11,168   Final model holdout:  [-7.1193, 18.4986]
+2026-06-08 20:50:11,168   Below cal range: 0.00% of holdout predictions
+2026-06-08 20:50:11,168   Above cal range: 0.00% of holdout predictions
+2026-06-08 20:50:12,324 
+V2 Training Complete!
+0:	learn: 11.1358459	test: 11.2400833	best: 11.2400833 (0)	total: 2.21s	remaining: 1h 13m 47s
+100:	learn: 10.0848471	test: 10.9232937	best: 10.9146896 (93)	total: 3m 25s	remaining: 1h 4m 29s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 10.91468963
+bestIteration = 93
+
+Shrink model to first 94 iterations.

@@ -1,0 +1,17 @@
+{
+  "objective": "reg:squarederror",
+  "eval_metric": "rmse",
+  "tree_method": "hist",
+  "n_jobs": -1,
+  "seed": 42,
+  "grow_policy": "depthwise",
+  "max_bin": 255,
+  "max_depth": 3,
+  "learning_rate": 0.010014162403900264,
+  "min_child_weight": 79,
+  "subsample": 0.5058855363400359,
+  "colsample_bytree": 0.5181714790956157,
+  "reg_alpha": 9.447451974912216,
+  "reg_lambda": 8.345410793374464,
+  "gamma": 4.928680044216499
+}

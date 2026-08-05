@@ -1,0 +1,207 @@
+{
+  "target": "mfe",
+  "n_samples": 17256223,
+  "n_bins": 20,
+  "bins": [
+    {
+      "bin": 0,
+      "pred_min": 1.345,
+      "pred_max": 4.6556,
+      "pred_mean": 4.1567,
+      "n_samples": 862812,
+      "win_prob": 0.5745,
+      "p_hit_pred": 0.4832,
+      "avg_mfe": 4.5704
+    },
+    {
+      "bin": 1,
+      "pred_min": 4.6556,
+      "pred_max": 5.1249,
+      "pred_mean": 4.9049,
+      "n_samples": 862811,
+      "win_prob": 0.621,
+      "p_hit_pred": 0.4625,
+      "avg_mfe": 5.1251
+    },
+    {
+      "bin": 2,
+      "pred_min": 5.1249,
+      "pred_max": 5.4842,
+      "pred_mean": 5.3101,
+      "n_samples": 862811,
+      "win_prob": 0.6384,
+      "p_hit_pred": 0.464,
+      "avg_mfe": 5.5533
+    },
+    {
+      "bin": 3,
+      "pred_min": 5.4842,
+      "pred_max": 5.8007,
+      "pred_mean": 5.6446,
+      "n_samples": 862811,
+      "win_prob": 0.6433,
+      "p_hit_pred": 0.4633,
+      "avg_mfe": 5.8928
+    },
+    {
+      "bin": 4,
+      "pred_min": 5.8007,
+      "pred_max": 6.0983,
+      "pred_mean": 5.9509,
+      "n_samples": 862811,
+      "win_prob": 0.6465,
+      "p_hit_pred": 0.4621,
+      "avg_mfe": 6.2028
+    },
+    {
+      "bin": 5,
+      "pred_min": 6.0983,
+      "pred_max": 6.3864,
+      "pred_mean": 6.2428,
+      "n_samples": 862811,
+      "win_prob": 0.6491,
+      "p_hit_pred": 0.4581,
+      "avg_mfe": 6.4592
+    },
+    {
+      "bin": 6,
+      "pred_min": 6.3864,
+      "pred_max": 6.6724,
+      "pred_mean": 6.5295,
+      "n_samples": 862811,
+      "win_prob": 0.6558,
+      "p_hit_pred": 0.4587,
+      "avg_mfe": 6.7688
+    },
+    {
+      "bin": 7,
+      "pred_min": 6.6724,
+      "pred_max": 6.9616,
+      "pred_mean": 6.8167,
+      "n_samples": 862811,
+      "win_prob": 0.6595,
+      "p_hit_pred": 0.4593,
+      "avg_mfe": 7.0523
+    },
+    {
+      "bin": 8,
+      "pred_min": 6.9616,
+      "pred_max": 7.2592,
+      "pred_mean": 7.1096,
+      "n_samples": 862811,
+      "win_prob": 0.6643,
+      "p_hit_pred": 0.4607,
+      "avg_mfe": 7.3551
+    },
+    {
+      "bin": 9,
+      "pred_min": 7.2592,
+      "pred_max": 7.5712,
+      "pred_mean": 7.414,
+      "n_samples": 862813,
+      "win_prob": 0.6709,
+      "p_hit_pred": 0.4627,
+      "avg_mfe": 7.6979
+    },
+    {
+      "bin": 10,
+      "pred_min": 7.5712,
+      "pred_max": 7.9025,
+      "pred_mean": 7.7351,
+      "n_samples": 862810,
+      "win_prob": 0.6788,
+      "p_hit_pred": 0.465,
+      "avg_mfe": 8.0474
+    },
+    {
+      "bin": 11,
+      "pred_min": 7.9025,
+      "pred_max": 8.2602,
+      "pred_mean": 8.0787,
+      "n_samples": 862811,
+      "win_prob": 0.6879,
+      "p_hit_pred": 0.4688,
+      "avg_mfe": 8.4477
+    },
+    {
+      "bin": 12,
+      "pred_min": 8.2602,
+      "pred_max": 8.6543,
+      "pred_mean": 8.4537,
+      "n_samples": 862811,
+      "win_prob": 0.6972,
+      "p_hit_pred": 0.4721,
+      "avg_mfe": 8.9003
+    },
+    {
+      "bin": 13,
+      "pred_min": 8.6543,
+      "pred_max": 9.0956,
+      "pred_mean": 8.8702,
+      "n_samples": 862811,
+      "win_prob": 0.707,
+      "p_hit_pred": 0.477,
+      "avg_mfe": 9.3868
+    },
+    {
+      "bin": 14,
+      "pred_min": 9.0956,
+      "pred_max": 9.609,
+      "pred_mean": 9.3449,
+      "n_samples": 862811,
+      "win_prob": 0.7193,
+      "p_hit_pred": 0.486,
+      "avg_mfe": 9.9933
+    },
+    {
+      "bin": 15,
+      "pred_min": 9.609,
+      "pred_max": 10.2272,
+      "pred_mean": 9.9079,
+      "n_samples": 862811,
+      "win_prob": 0.7264,
+      "p_hit_pred": 0.4864,
+      "avg_mfe": 10.6347
+    },
+    {
+      "bin": 16,
+      "pred_min": 10.2272,
+      "pred_max": 11.0204,
+      "pred_mean": 10.6047,
+      "n_samples": 862811,
+      "win_prob": 0.7355,
+      "p_hit_pred": 0.4941,
+      "avg_mfe": 11.4988
+    },
+    {
+      "bin": 17,
+      "pred_min": 11.0204,
+      "pred_max": 12.1397,
+      "pred_mean": 11.5429,
+      "n_samples": 862811,
+      "win_prob": 0.7495,
+      "p_hit_pred": 0.5052,
+      "avg_mfe": 12.7797
+    },
+    {
+      "bin": 18,
+      "pred_min": 12.1397,
+      "pred_max": 14.081,
+      "pred_mean": 12.9966,
+      "n_samples": 862811,
+      "win_prob": 0.7711,
+      "p_hit_pred": 0.5223,
+      "avg_mfe": 14.6575
+    },
+    {
+      "bin": 19,
+      "pred_min": 14.081,
+      "pred_max": 91.9419,
+      "pred_mean": 17.4368,
+      "n_samples": 862812,
+      "win_prob": 0.8148,
+      "p_hit_pred": 0.5392,
+      "avg_mfe": 20.3155
+    }
+  ]
+}

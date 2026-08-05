@@ -9,7 +9,15 @@ US_CSV_DIR = os.path.join(CSV_DIR, 'US')
 ETF_CSV_DIR = os.path.join(CSV_DIR, 'ETF')
 INDX_CSV_DIR = os.path.join(CSV_DIR, 'INDX')
 COMM_CSV_DIR = os.path.join(CSV_DIR, 'COMM')
-OPP_BY_SYMBOL_DIR = os.path.join(DATA_DIR, 'sp500', 'opp_by_symbol')
+# Auto-detect the sp500 data folder name so the gzip opp-loading fallback works on
+# both production (sp500) and the Windows dev box (sp500_), matching the same
+# auto-detect already used by ML_PARQUET_MARKETS below. Without this, the gzip
+# fallback looked only in sp500/ and silently returned no patterns on dev (all
+# pattern features NaN) -- now surfaced by the scorer's feature_nan_count guard.
+_SP500_DATA_DIR = (os.path.join(DATA_DIR, 'sp500_')
+                   if os.path.isdir(os.path.join(DATA_DIR, 'sp500_'))
+                   else os.path.join(DATA_DIR, 'sp500'))
+OPP_BY_SYMBOL_DIR = os.path.join(_SP500_DATA_DIR, 'opp_by_symbol')
 EARNINGS_DIR = os.environ.get('ML_SCORER_EARNINGS_DIR',
                                os.path.join(os.path.dirname(DATA_DIR), 'edgar', 'earnings'))
 

@@ -1,0 +1,160 @@
+[setup] OPP_BY_SYMBOL_DIR repointed to existing dir: C:/seasonals/data\sp500_\opp_by_symbol
+
+==============================================================================
+TIER 10_30
+==============================================================================
+Reading meta columns ['date', 'symbol', 'direction', 'daysOut'] to sample 300 rows ...
+  34,758,772 total rows
+  fetching 62 feature columns for 286 sampled rows (chunked by row group) ...
+  sampled 286 rows across 26 years and 219 symbols (seed=42)
+  per-year counts: {2000: np.int64(11), 2001: np.int64(11), 2002: np.int64(11), 2003: np.int64(11), 2004: np.int64(11), 2005: np.int64(11), 2006: np.int64(11), 2007: np.int64(11), 2008: np.int64(11), 2009: np.int64(11), 2010: np.int64(11), 2011: np.int64(11), 2012: np.int64(11), 2013: np.int64(11), 2014: np.int64(11), 2015: np.int64(11), 2016: np.int64(11), 2017: np.int64(11), 2018: np.int64(11), 2019: np.int64(11), 2020: np.int64(11), 2021: np.int64(11), 2022: np.int64(11), 2023: np.int64(11), 2024: np.int64(11), 2025: np.int64(11)}
+    ...50/286 rows  (1.0 rows/s, 50 scored, 0 errors, 0 empty)
+    ...100/286 rows  (0.8 rows/s, 100 scored, 0 errors, 0 empty)
+    ...150/286 rows  (0.8 rows/s, 150 scored, 0 errors, 0 empty)
+    ...200/286 rows  (0.7 rows/s, 200 scored, 0 errors, 0 empty)
+    ...250/286 rows  (0.7 rows/s, 250 scored, 0 errors, 0 empty)
+  done in 446s: 286 scored, 0 engine errors, 0 empty results
+
+  WORST 15 FEATURES (of 62) for tier 10_30:
+  feature                       mm_rate  n_mm nan_mm      max_abs   max_rel
+  -------------------------------------------------------------------------
+  pat_concurrent_count            1.000   286      0          412     0.997
+  pat_data_years                  1.000   286      0        26.71     0.683
+  mkt_fed_rate_direction          0.808   231      1         0.58         2
+  mkt_credit_spread               0.692   198      0     0.001925   0.00263
+  mkt_credit_spread_change_20d    0.671   192      0     0.008521      1.13
+  mkt_cl_roc_20                   0.629   180      0       0.2124       1.9
+  mkt_gc_roc_20                   0.430   123      0       0.1518      1.99
+  mkt_dxy_roc_20                  0.395   113      0      0.01852      1.69
+  pat_depth_utilization           0.276    79      0        0.697         1
+  pat_pe_utilization              0.252    72      0        1.257         1
+  pat_avg_profit2                 0.238    68      0         4.82     0.436
+  pat_sharpe_ratio                0.227    65      0         3.37     0.709
+  pat_quality_x_regime            0.182    52      0         3.37     0.709
+  ta_price_vs_sma200              0.150    43      1       0.5956     0.127
+  ta_sma50_vs_sma200              0.115    33      1       0.4623    0.0811
+
+  Representative example diffs (worst features):
+    pat_concurrent_count         JNJ@2005-12-07 train=22 serve=434 (value_mismatch)
+    pat_data_years               NWS@2007-01-10 train=39.1111 serve=12.4008 (value_mismatch)
+    mkt_fed_rate_direction       AZO@2020-03-25 train=-1.515 serve=NaN (nan_mismatch)
+    mkt_credit_spread            MPWR@2025-07-07 train=0.731612 serve=0.729687 (value_mismatch)
+    mkt_credit_spread_change_20d HOLX@2022-07-14 train=-0.00259834 serve=-0.0111194 (value_mismatch)
+    mkt_cl_roc_20                CF@2008-10-14 train=-0.137356 serve=-0.349735 (value_mismatch)
+    mkt_gc_roc_20                CF@2008-10-14 train=0.0770122 serve=-0.074787 (value_mismatch)
+    mkt_dxy_roc_20               EL@2010-09-08 train=0.0221042 serve=0.00358488 (value_mismatch)
+
+  CLEAN within tolerance (21/62): cal_day_of_year, cal_is_opex_week, cal_month, cal_pe_year, cal_week_of_month, mkt_adv_decl_ratio_10d, mkt_sector_rotation, mkt_spx_dir_alignment, mkt_spx_seasonal_regime, mkt_spx_seasonal_ret, mkt_spx_seasonal_wr, mkt_spy_above_sma200, mkt_vix_5d_change, mkt_vix_level, mkt_vix_regime_bucket, mkt_vix_term_structure, pat_daysOut, pat_dir_x_mkt_trend, pat_direction, pat_passes_recent_10, pat_recent_vs_deep_sharpe
+  SKEWED (41/62): pat_concurrent_count, pat_data_years, mkt_fed_rate_direction, mkt_credit_spread, mkt_credit_spread_change_20d, mkt_cl_roc_20, mkt_gc_roc_20, mkt_dxy_roc_20, pat_depth_utilization, pat_pe_utilization, pat_avg_profit2, pat_sharpe_ratio, pat_quality_x_regime, ta_price_vs_sma200, ta_sma50_vs_sma200, pat_num_combos_qualifying, mkt_yield_curve_slope, mkt_vix_percentile_60d, mkt_breadth_momentum, mkt_spy_roc_20, ta_rvol_20, pat_pe_deepest, ctx_pct_from_52w_high, pat_best_winrate, ctx_pct_from_52w_low, pat_dir_x_sector_trend, pat_deepest_pass, pat_deepest_pass_capped30, pat_depth_x_vix, pat_worst_winrate, pat_consistency_std, ta_trend_long, ta_trend_direction_match, pat_pe_match, mkt_yield_curve_10y2y, pat_sharpness, pat_neighbor_avg_wr, pat_pre_slope, pat_post_cliff, pat_hit_last_year, mkt_fed_rate_level
+
+  -> report saved: C:\seasonals\ml_scorer\results\experiments\parity_report_10_30.csv
+
+==============================================================================
+TIER 31_60
+==============================================================================
+Reading meta columns ['date', 'symbol', 'direction', 'daysOut'] to sample 300 rows ...
+  54,414,260 total rows
+  fetching 62 feature columns for 286 sampled rows (chunked by row group) ...
+  sampled 286 rows across 26 years and 206 symbols (seed=42)
+  per-year counts: {2000: np.int64(11), 2001: np.int64(11), 2002: np.int64(11), 2003: np.int64(11), 2004: np.int64(11), 2005: np.int64(11), 2006: np.int64(11), 2007: np.int64(11), 2008: np.int64(11), 2009: np.int64(11), 2010: np.int64(11), 2011: np.int64(11), 2012: np.int64(11), 2013: np.int64(11), 2014: np.int64(11), 2015: np.int64(11), 2016: np.int64(11), 2017: np.int64(11), 2018: np.int64(11), 2019: np.int64(11), 2020: np.int64(11), 2021: np.int64(11), 2022: np.int64(11), 2023: np.int64(11), 2024: np.int64(11), 2025: np.int64(11)}
+    ...50/286 rows  (0.2 rows/s, 50 scored, 0 errors, 0 empty)
+    ...100/286 rows  (0.4 rows/s, 100 scored, 0 errors, 0 empty)
+    ...150/286 rows  (0.5 rows/s, 150 scored, 0 errors, 0 empty)
+    ...200/286 rows  (0.5 rows/s, 200 scored, 0 errors, 0 empty)
+    ...250/286 rows  (0.6 rows/s, 250 scored, 0 errors, 0 empty)
+  done in 499s: 286 scored, 0 engine errors, 0 empty results
+
+  WORST 15 FEATURES (of 62) for tier 31_60:
+  feature                       mm_rate  n_mm nan_mm      max_abs   max_rel
+  -------------------------------------------------------------------------
+  pat_concurrent_count            1.000   286      0          357     0.985
+  pat_data_years                  1.000   286      0         22.1     0.349
+  mkt_fed_rate_direction          0.762   218      0        0.345         2
+  mkt_credit_spread               0.692   198      0     0.001929   0.00263
+  mkt_cl_roc_20                   0.678   194      0       0.1449      1.99
+  mkt_credit_spread_change_20d    0.675   193      0     0.009216      1.92
+  mkt_gc_roc_20                   0.486   139      0      0.07105      1.53
+  mkt_dxy_roc_20                  0.381   109      0      0.01752      1.24
+  pat_depth_utilization           0.287    82      0        0.771         1
+  pat_sharpe_ratio                0.255    73      0         1.14     0.696
+  pat_avg_profit2                 0.252    72      0         6.03     0.432
+  pat_pe_utilization              0.252    72      0       0.9459         1
+  pat_quality_x_regime            0.185    53      0         1.14         1
+  ta_price_vs_sma200              0.147    42      0       0.4797     0.142
+  pat_num_combos_qualifying       0.112    32      0           28     0.882
+
+  Representative example diffs (worst features):
+    pat_concurrent_count         NVDA@2023-03-09 train=18 serve=375 (value_mismatch)
+    pat_data_years               IP@2025-06-16 train=41.2421 serve=63.3452 (value_mismatch)
+    mkt_fed_rate_direction       MET@2009-01-21 train=-0.8 serve=-0.455 (value_mismatch)
+    mkt_credit_spread            LH@2025-05-15 train=0.73328 serve=0.73135 (value_mismatch)
+    mkt_cl_roc_20                GPC@2015-09-25 train=0.0737782 serve=-0.0711382 (value_mismatch)
+    mkt_credit_spread_change_20d KKR@2022-06-06 train=0.00479073 serve=-0.00442518 (value_mismatch)
+    mkt_gc_roc_20                CAT@2008-10-31 train=-0.135239 serve=-0.206289 (value_mismatch)
+    mkt_dxy_roc_20               IBM@2010-01-04 train=0.0387775 serve=0.0212617 (value_mismatch)
+
+  CLEAN within tolerance (24/62): cal_day_of_year, cal_is_opex_week, cal_month, cal_pe_year, cal_week_of_month, mkt_adv_decl_ratio_10d, mkt_fed_rate_level, mkt_sector_rotation, mkt_spx_dir_alignment, mkt_spx_seasonal_regime, mkt_spx_seasonal_ret, mkt_spx_seasonal_wr, mkt_vix_5d_change, mkt_vix_level, mkt_vix_regime_bucket, mkt_vix_term_structure, pat_daysOut, pat_dir_x_mkt_trend, pat_direction, pat_hit_last_year, pat_neighbor_avg_wr, pat_post_cliff, pat_pre_slope, pat_sharpness
+  SKEWED (38/62): pat_concurrent_count, pat_data_years, mkt_fed_rate_direction, mkt_credit_spread, mkt_cl_roc_20, mkt_credit_spread_change_20d, mkt_gc_roc_20, mkt_dxy_roc_20, pat_depth_utilization, pat_sharpe_ratio, pat_avg_profit2, pat_pe_utilization, pat_quality_x_regime, ta_price_vs_sma200, pat_num_combos_qualifying, ta_sma50_vs_sma200, ta_rvol_20, mkt_spy_roc_20, mkt_yield_curve_slope, pat_deepest_pass, pat_deepest_pass_capped30, pat_depth_x_vix, mkt_breadth_momentum, pat_consistency_std, ctx_pct_from_52w_high, pat_dir_x_sector_trend, mkt_vix_percentile_60d, pat_best_winrate, ctx_pct_from_52w_low, pat_pe_deepest, ta_trend_long, ta_trend_direction_match, pat_worst_winrate, pat_pe_match, pat_passes_recent_10, mkt_spy_above_sma200, mkt_yield_curve_10y2y, pat_recent_vs_deep_sharpe
+
+  -> report saved: C:\seasonals\ml_scorer\results\experiments\parity_report_31_60.csv
+
+==============================================================================
+TIER 61_90
+==============================================================================
+Reading meta columns ['date', 'symbol', 'direction', 'daysOut'] to sample 300 rows ...
+  59,132,982 total rows
+  fetching 62 feature columns for 286 sampled rows (chunked by row group) ...
+  sampled 286 rows across 26 years and 201 symbols (seed=42)
+  per-year counts: {2000: np.int64(11), 2001: np.int64(11), 2002: np.int64(11), 2003: np.int64(11), 2004: np.int64(11), 2005: np.int64(11), 2006: np.int64(11), 2007: np.int64(11), 2008: np.int64(11), 2009: np.int64(11), 2010: np.int64(11), 2011: np.int64(11), 2012: np.int64(11), 2013: np.int64(11), 2014: np.int64(11), 2015: np.int64(11), 2016: np.int64(11), 2017: np.int64(11), 2018: np.int64(11), 2019: np.int64(11), 2020: np.int64(11), 2021: np.int64(11), 2022: np.int64(11), 2023: np.int64(11), 2024: np.int64(11), 2025: np.int64(11)}
+    ...50/286 rows  (0.3 rows/s, 50 scored, 0 errors, 0 empty)
+    ...100/286 rows  (0.5 rows/s, 100 scored, 0 errors, 0 empty)
+    ...150/286 rows  (0.6 rows/s, 150 scored, 0 errors, 0 empty)
+    ...200/286 rows  (0.7 rows/s, 200 scored, 0 errors, 0 empty)
+    ...250/286 rows  (0.7 rows/s, 250 scored, 0 errors, 0 empty)
+  done in 394s: 286 scored, 0 engine errors, 0 empty results
+
+  WORST 15 FEATURES (of 62) for tier 61_90:
+  feature                       mm_rate  n_mm nan_mm      max_abs   max_rel
+  -------------------------------------------------------------------------
+  pat_concurrent_count            1.000   286      0          402      0.99
+  pat_data_years                  1.000   286      0        12.21     0.228
+  mkt_fed_rate_direction          0.752   215      2        0.205         2
+  mkt_cl_roc_20                   0.692   198      0       0.1543      1.94
+  mkt_credit_spread               0.692   198      0      0.00194   0.00264
+  mkt_credit_spread_change_20d    0.664   190      0     0.007049      1.52
+  mkt_gc_roc_20                   0.458   131      0      0.08453      1.86
+  mkt_dxy_roc_20                  0.413   118      0      0.01859      1.49
+  pat_depth_utilization           0.343    98      0       0.6857         1
+  pat_avg_profit2                 0.238    68      0        10.23     0.333
+  pat_sharpe_ratio                0.231    66      0         1.21     0.897
+  pat_pe_utilization              0.227    65      0        1.257         1
+  ta_price_vs_sma200              0.178    51      0        3.535     0.744
+  pat_quality_x_regime            0.171    49      0         1.21     0.897
+  ta_sma50_vs_sma200              0.140    40      0        7.333     0.712
+
+  Representative example diffs (worst features):
+    pat_concurrent_count         J@2015-04-08 train=18 serve=420 (value_mismatch)
+    pat_data_years               HUBB@2013-09-03 train=41.2421 serve=53.4524 (value_mismatch)
+    mkt_fed_rate_direction       RMD@2020-03-27 train=-1.502 serve=NaN (nan_mismatch)
+    mkt_cl_roc_20                CL@2009-03-18 train=0.390526 serve=0.236261 (value_mismatch)
+    mkt_credit_spread            GOOG@2025-05-21 train=0.737022 serve=0.735083 (value_mismatch)
+    mkt_credit_spread_change_20d NXPI@2022-12-14 train=-0.00859025 serve=-0.0156397 (value_mismatch)
+    mkt_gc_roc_20                ROP@2011-09-02 train=0.136402 serve=0.0518722 (value_mismatch)
+    mkt_dxy_roc_20               DRI@2008-12-02 train=0.00402992 serve=0.0226222 (value_mismatch)
+
+  CLEAN within tolerance (19/62): cal_day_of_year, cal_is_opex_week, cal_month, cal_pe_year, cal_week_of_month, mkt_adv_decl_ratio_10d, mkt_sector_rotation, mkt_spx_dir_alignment, mkt_spx_seasonal_regime, mkt_spx_seasonal_ret, mkt_spx_seasonal_wr, mkt_spy_above_sma200, mkt_vix_5d_change, mkt_vix_level, mkt_vix_regime_bucket, mkt_vix_term_structure, pat_daysOut, pat_dir_x_mkt_trend, pat_direction
+  SKEWED (43/62): pat_concurrent_count, pat_data_years, mkt_fed_rate_direction, mkt_cl_roc_20, mkt_credit_spread, mkt_credit_spread_change_20d, mkt_gc_roc_20, mkt_dxy_roc_20, pat_depth_utilization, pat_avg_profit2, pat_sharpe_ratio, pat_pe_utilization, ta_price_vs_sma200, pat_quality_x_regime, ta_sma50_vs_sma200, pat_num_combos_qualifying, mkt_spy_roc_20, pat_deepest_pass, pat_deepest_pass_capped30, pat_depth_x_vix, mkt_breadth_momentum, mkt_vix_percentile_60d, pat_dir_x_sector_trend, mkt_yield_curve_slope, pat_consistency_std, ta_rvol_20, ctx_pct_from_52w_high, ctx_pct_from_52w_low, ta_trend_long, pat_best_winrate, pat_worst_winrate, pat_pe_deepest, ta_trend_direction_match, pat_pe_match, pat_recent_vs_deep_sharpe, pat_post_cliff, pat_sharpness, pat_neighbor_avg_wr, pat_pre_slope, mkt_yield_curve_10y2y, mkt_fed_rate_level, pat_passes_recent_10, pat_hit_last_year
+
+  -> report saved: C:\seasonals\ml_scorer\results\experiments\parity_report_61_90.csv
+
+##############################################################################
+OVERALL SUMMARY
+##############################################################################
+  tier 10_30 : 286/286 scored | CLEAN 21/62  SKEWED 41/62 | engine_err=0 empty=0
+             report: C:\seasonals\ml_scorer\results\experiments\parity_report_10_30.csv
+  tier 31_60 : 286/286 scored | CLEAN 24/62  SKEWED 38/62 | engine_err=0 empty=0
+             report: C:\seasonals\ml_scorer\results\experiments\parity_report_31_60.csv
+  tier 61_90 : 286/286 scored | CLEAN 19/62  SKEWED 43/62 | engine_err=0 empty=0
+             report: C:\seasonals\ml_scorer\results\experiments\parity_report_61_90.csv
+
+  Features SKEWED in ALL 3 tiers (35): ctx_pct_from_52w_high, ctx_pct_from_52w_low, mkt_breadth_momentum, mkt_cl_roc_20, mkt_credit_spread, mkt_credit_spread_change_20d, mkt_dxy_roc_20, mkt_fed_rate_direction, mkt_gc_roc_20, mkt_spy_roc_20, mkt_vix_percentile_60d, mkt_yield_curve_10y2y, mkt_yield_curve_slope, pat_avg_profit2, pat_best_winrate, pat_concurrent_count, pat_consistency_std, pat_data_years, pat_deepest_pass, pat_deepest_pass_capped30, pat_depth_utilization, pat_depth_x_vix, pat_dir_x_sector_trend, pat_num_combos_qualifying, pat_pe_deepest, pat_pe_match, pat_pe_utilization, pat_quality_x_regime, pat_sharpe_ratio, pat_worst_winrate, ta_price_vs_sma200, ta_rvol_20, ta_sma50_vs_sma200, ta_trend_direction_match, ta_trend_long

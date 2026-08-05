@@ -18,13 +18,14 @@ class ModelEnsemble:
         self.feature_cols_mfe = list(feature_cols_mfe or feature_cols_sr)
         self.models_sr = self._load_ensemble(tier_config['sr'], model_dir)
         self.models_mfe = self._load_ensemble(tier_config['mfe'], model_dir)
-        self.cal_sr = self._load_calibration(
+        self.cal_sr, self.cal_sr_platt = self._load_calibration(
             os.path.join(calibration_dir, tier_config['calibration_sr']))
-        self.cal_mfe = self._load_calibration(
+        self.cal_mfe, self.cal_mfe_platt = self._load_calibration(
             os.path.join(calibration_dir, tier_config['calibration_mfe']))
         log.info(f"  SR models: {len(self.models_sr)} ({len(self.feature_cols_sr)} feats), "
                  f"MFE models: {len(self.models_mfe)} ({len(self.feature_cols_mfe)} feats)")
-        log.info(f"  SR cal bins: {len(self.cal_sr)}, MFE cal bins: {len(self.cal_mfe)}")
+        log.info(f"  SR cal bins: {len(self.cal_sr)}, MFE cal bins: {len(self.cal_mfe)}, "
+                 f"win_prob: {'platt' if self.cal_sr_platt else 'binned'}")
 
         # Validate loaded models match expected feature counts
         self._validate_features('SR', self.models_sr, self.feature_cols_sr)
@@ -90,16 +91,19 @@ class ModelEnsemble:
         return models
 
     def _load_calibration(self, path):
-        """Load calibration JSON, return sorted list of bin dicts.
+        """Load calibration JSON, return (sorted_bins, platt_or_None).
 
         Raises RuntimeError if the file is missing -- calibration is required
-        for win_prob and ml_score to be meaningful.
+        for win_prob and ml_score to be meaningful. The optional 'platt' block
+        ({'a','b'}) is a logistic win_prob calibrator (sigmoid(a*pred+b)); when
+        present it is preferred over the binned win_prob (smoother, better tail
+        reliability). Absent -> binned win_prob (backward compatible).
         """
         if not os.path.exists(path):
             raise RuntimeError(f"FATAL: Calibration file missing: {path}")
         with open(path) as f:
             data = json.load(f)
-        return sorted(data['bins'], key=lambda b: b['bin'])
+        return sorted(data['bins'], key=lambda b: b['bin']), data.get('platt')
 
     def predict(self, feature_dict):
         """
@@ -117,6 +121,14 @@ class ModelEnsemble:
         X_mfe = np.array([[feature_dict.get(f, np.nan) for f in self.feature_cols_mfe]],
                          dtype=np.float32)
 
+        # Feature-contract guard: count missing/NaN features so degraded inputs
+        # (missing price CSV, unmapped sector, stale opp data) are visible rather
+        # than silently producing a confident-looking score.
+        nan_count = int(np.isnan(X_sr).sum())
+        if nan_count > 8:
+            log.warning(f"High feature NaN count ({nan_count}/{len(self.feature_cols_sr)}) "
+                        f"-- scoring on degraded inputs; prediction less reliable")
+
         pred_sr = self._predict_ensemble(self.models_sr, X_sr, self.feature_cols_sr)
         pred_mfe = self._predict_ensemble(self.models_mfe, X_mfe, self.feature_cols_mfe)
 
@@ -126,8 +138,14 @@ class ModelEnsemble:
                 f'pred_sr={pred_sr}, pred_mfe={pred_mfe}'
             )
 
-        # Calibration lookup
-        win_prob = self._calibrate(self.cal_sr, pred_sr, 'win_prob')
+        # Calibration lookup. win_prob prefers the logistic (Platt) map when the
+        # calibration file provides one -- smoother and better tail reliability
+        # than the binned step function -- else falls back to the binned win_prob.
+        if self.cal_sr_platt is not None:
+            a, b = self.cal_sr_platt['a'], self.cal_sr_platt['b']
+            win_prob = 1.0 / (1.0 + math.exp(-(a * pred_sr + b)))
+        else:
+            win_prob = self._calibrate(self.cal_sr, pred_sr, 'win_prob')
         p_hit_return = self._calibrate(self.cal_sr, pred_sr, 'p_hit_pred')
         p_hit_mfe = self._calibrate(self.cal_mfe, pred_mfe, 'p_hit_pred')
 
@@ -141,6 +159,7 @@ class ModelEnsemble:
             'p_hit_return': round(float(p_hit_return), 4),
             'p_hit_mfe': round(float(p_hit_mfe), 4),
             'ml_score': round(float(ml_score), 1),
+            'feature_nan_count': nan_count,
         }
 
     def _predict_ensemble(self, models, X, feature_cols):

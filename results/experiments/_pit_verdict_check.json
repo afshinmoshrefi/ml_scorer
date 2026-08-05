@@ -1,0 +1,158 @@
+{
+  "rows_file": "results/experiments/pit_premise_rows.parquet",
+  "n_rows": 11130822,
+  "inference": "year-clustered (per-year lifts), HAC(2) t, 95% CI, MDE at 80% power; pooled row t-stats are NOT used (audit: rows are massively cross-correlated)",
+  "l": {
+    "C1_q10_8_vs_never": {
+      "label": "q10_8 vs never-qualified",
+      "n_years": 26,
+      "n_treat_rows": 867176,
+      "n_base_rows": 2531941,
+      "wr_lift_pp_yearmean": 3.275,
+      "wr_lift_t": 3.4,
+      "wr_lift_t_hac2": 3.29,
+      "wr_lift_ci95_pp": [
+        1.294,
+        5.257
+      ],
+      "mde_80pct_power_pp": 2.809,
+      "years_positive": 21,
+      "ret_lift_pp_yearmean": 0.824,
+      "ret_lift_t_hac2": 3.05
+    },
+    "C1b_deep15_vs_never": {
+      "label": "depth>=15 vs never-qualified",
+      "n_years": 26,
+      "n_treat_rows": 809440,
+      "n_base_rows": 2531941,
+      "wr_lift_pp_yearmean": 3.755,
+      "wr_lift_t": 3.54,
+      "wr_lift_t_hac2": 3.72,
+      "wr_lift_ci95_pp": [
+        1.572,
+        5.937
+      ],
+      "mde_80pct_power_pp": 3.093,
+      "years_positive": 20,
+      "ret_lift_pp_yearmean": 0.847,
+      "ret_lift_t_hac2": 3.5
+    },
+    "C3_within_stock_year": {
+      "label": "q10_8 vs never, same symbol+year+daysOut",
+      "n_cells": 45350,
+      "n_years": 26,
+      "wr_lift_pp_yearmean": 2.083,
+      "wr_lift_t": 2.15,
+      "wr_lift_t_hac2": 1.94,
+      "years_positive": 19
+    },
+    "tradability_q10_8": {
+      "label": "q10_8",
+      "wr_pct_yearmean": 60.69,
+      "wr_excess_vs_breakeven_pp": 10.69,
+      "wr_ci95": [
+        57.57,
+        63.82
+      ],
+      "avg_ret_pct_yearmean": 2.381,
+      "avg_ret_ci95": [
+        1.46,
+        3.303
+      ],
+      "tradable_wr_above_50": true
+    },
+    "tradability_never": {
+      "label": "never-qualified",
+      "wr_pct_yearmean": 57.42,
+      "wr_excess_vs_breakeven_pp": 7.42,
+      "wr_ci95": [
+        54.79,
+        60.05
+      ],
+      "avg_ret_pct_yearmean": 1.557,
+      "avg_ret_ci95": [
+        0.866,
+        2.249
+      ],
+      "tradable_wr_above_50": true
+    }
+  },
+  "s": {
+    "C1_q10_8_vs_never": {
+      "label": "q10_8 vs never-qualified",
+      "n_years": 26,
+      "n_treat_rows": 94392,
+      "n_base_rows": 4458202,
+      "wr_lift_pp_yearmean": 2.86,
+      "wr_lift_t": 3.19,
+      "wr_lift_t_hac2": 2.86,
+      "wr_lift_ci95_pp": [
+        1.013,
+        4.707
+      ],
+      "mde_80pct_power_pp": 2.618,
+      "years_positive": 17,
+      "ret_lift_pp_yearmean": 0.825,
+      "ret_lift_t_hac2": 2.63
+    },
+    "C1b_deep15_vs_never": {
+      "label": "depth>=15 vs never-qualified",
+      "n_years": 26,
+      "n_treat_rows": 45835,
+      "n_base_rows": 4458202,
+      "wr_lift_pp_yearmean": 4.96,
+      "wr_lift_t": 4.13,
+      "wr_lift_t_hac2": 3.21,
+      "wr_lift_ci95_pp": [
+        2.487,
+        7.434
+      ],
+      "mde_80pct_power_pp": 3.506,
+      "years_positive": 20,
+      "ret_lift_pp_yearmean": 1.36,
+      "ret_lift_t_hac2": 2.46
+    },
+    "C3_within_stock_year": {
+      "label": "q10_8 vs never, same symbol+year+daysOut",
+      "n_cells": 27541,
+      "n_years": 26,
+      "wr_lift_pp_yearmean": 1.304,
+      "wr_lift_t": 1.5,
+      "wr_lift_t_hac2": 1.27,
+      "years_positive": 15
+    },
+    "tradability_q10_8": {
+      "label": "q10_8",
+      "wr_pct_yearmean": 43.93,
+      "wr_excess_vs_breakeven_pp": -6.07,
+      "wr_ci95": [
+        40.96,
+        46.9
+      ],
+      "avg_ret_pct_yearmean": -1.107,
+      "avg_ret_ci95": [
+        -1.834,
+        -0.38
+      ],
+      "tradable_wr_above_50": false
+    },
+    "tradability_never": {
+      "label": "never-qualified",
+      "wr_pct_yearmean": 41.07,
+      "wr_excess_vs_breakeven_pp": -8.93,
+      "wr_ci95": [
+        38.32,
+        43.82
+      ],
+      "avg_ret_pct_yearmean": -1.933,
+      "avg_ret_ci95": [
+        -2.703,
+        -1.163
+      ],
+      "tradable_wr_above_50": false
+    }
+  },
+  "context": {
+    "note": "The honest lift stands alone. The gap to the training-side 13pp qualify/not figure is an UPPER BOUND on the look-ahead component: universes, VIX filtering, baseline definitions and direction mix differ between the two measurements (audit finding). Long-side absolute levels remain survivor-biased upward when run on current index membership; the C3 within-stock contrast and the --universe all rerun are the controls for that channel."
+  }
+}

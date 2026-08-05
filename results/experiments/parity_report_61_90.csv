@@ -1,0 +1,63 @@
+feature,n_compared,n_mismatch,mismatch_rate,n_nan_mismatch,max_abs_diff,mean_abs_diff,max_rel_diff,ex1,ex2,ex3
+pat_concurrent_count,286,286,1.0,0,402.0,206.23426573426573,0.9897260273972602,J@2015-04-08 train=18 serve=420 (value_mismatch),NVDA@2005-05-26 train=39 serve=416 (value_mismatch),VMC@2010-03-18 train=42 serve=414 (value_mismatch)
+pat_data_years,286,286,1.0,0,12.210317460317455,0.8146714396714371,0.22843355605048246,HUBB@2013-09-03 train=41.2421 serve=53.4524 (value_mismatch),AXP@2024-09-16 train=41.2421 serve=53.4524 (value_mismatch),BK@2014-10-20 train=41.2421 serve=53.4127 (value_mismatch)
+mkt_fed_rate_direction,286,215,0.7517,2,0.20500000000000007,0.02697652582159619,1.9999999999999987,RMD@2020-03-27 train=-1.502 serve=NaN (nan_mismatch),AEE@2020-03-26 train=-1.487 serve=NaN (nan_mismatch),VZ@2023-01-10 train=0.937 serve=0.732 (value_mismatch)
+mkt_cl_roc_20,286,198,0.6923,0,0.1542647934564041,0.025312561333579776,1.9438679834979462,CL@2009-03-18 train=0.390526 serve=0.236261 (value_mismatch),BXP@2001-01-18 train=0.0231855 serve=0.172055 (value_mismatch),ADBE@2009-07-31 train=0.0407613 serve=0.154805 (value_mismatch)
+mkt_credit_spread,286,198,0.6923,0,0.0019397257121414047,0.0016378478709901266,0.0026354064355050277,GOOG@2025-05-21 train=0.737022 serve=0.735083 (value_mismatch),MRK@2025-07-16 train=0.735179 serve=0.733245 (value_mismatch),ICE@2025-05-27 train=0.731876 serve=0.729951 (value_mismatch)
+mkt_credit_spread_change_20d,286,190,0.6643,0,0.007049480314009315,0.00021000373812218398,1.5249848126749785,NXPI@2022-12-14 train=-0.00859025 serve=-0.0156397 (value_mismatch),ECL@2022-12-07 train=-0.0292394 serve=-0.0355572 (value_mismatch),ERIE@2024-01-22 train=0.00330551 serve=0.00660539 (value_mismatch)
+mkt_gc_roc_20,286,131,0.458,0,0.08453000377826758,0.012384529933804036,1.8612533528407722,ROP@2011-09-02 train=0.136402 serve=0.0518722 (value_mismatch),WM@2011-10-17 train=-0.0568003 serve=0.0232061 (value_mismatch),COR@2006-01-11 train=0.0386071 serve=0.0835143 (value_mismatch)
+mkt_dxy_roc_20,286,118,0.4126,0,0.018592269527763928,0.0036435697910976454,1.4876301379188994,DRI@2008-12-02 train=0.00402992 serve=0.0226222 (value_mismatch),SPGI@2011-12-07 train=0.0247957 serve=0.00717347 (value_mismatch),C@2015-06-15 train=0.0179846 serve=0.00625126 (value_mismatch)
+pat_depth_utilization,286,98,0.3427,0,0.6857142857142857,0.058243076691310354,1.0,AAPL@2013-10-07 train=0.2 serve=0.885714 (value_mismatch),APH@2005-10-17 train=0.935282 serve=0.523425 (value_mismatch),VZ@2006-11-06 train=0.314286 serve=0 (value_mismatch)
+pat_avg_profit2,286,68,0.2378,0,10.23,1.1592647058823526,0.33274647887323944,DAL@2016-10-10 train=22.26 serve=32.49 (value_mismatch),VRTX@2025-10-27 train=17.04 serve=11.37 (value_mismatch),KEY@2013-11-04 train=24.97 serve=20.88 (value_mismatch)
+pat_sharpe_ratio,286,66,0.2308,0,1.21,0.21242424242424238,0.8969072164948454,VRTX@2025-10-27 train=0.88 serve=2.09 (value_mismatch),MCO@2023-09-25 train=0.97 serve=0.1 (value_mismatch),IRM@2011-10-31 train=1.1 serve=1.83 (value_mismatch)
+pat_pe_utilization,286,65,0.2273,0,1.2571428571428571,0.10215393500658404,1.0,AAPL@2013-10-07 train=0 serve=1.25714 (value_mismatch),JCI@2009-09-28 train=1.14286 serve=0 (value_mismatch),LII@2003-09-22 train=0 serve=0.910021 (value_mismatch)
+ta_price_vs_sma200,286,51,0.1783,0,3.5345003058360307,0.11074410515604229,0.7438347414300478,CL@2009-03-18 train=-4.92351 serve=-8.45801 (value_mismatch),C@2002-10-18 train=-0.371577 serve=-1.45054 (value_mismatch),KLAC@2013-03-25 train=2.45638 serve=1.90603 (value_mismatch)
+pat_quality_x_regime,286,49,0.1713,0,1.21,0.19653061224489793,0.8969072164948454,VRTX@2025-10-27 train=0.88 serve=2.09 (value_mismatch),MCO@2023-09-25 train=0.97 serve=0.1 (value_mismatch),EA@2022-03-21 train=1.31 serve=1.98 (value_mismatch)
+ta_sma50_vs_sma200,286,40,0.1399,0,7.333460304641099,0.21826473967763876,0.7118960547229576,CL@2009-03-18 train=-2.96785 serve=-10.3013 (value_mismatch),C@2002-10-18 train=-2.78643 serve=-3.45711 (value_mismatch),KLAC@2013-03-25 train=4.58811 serve=4.19305 (value_mismatch)
+pat_num_combos_qualifying,286,29,0.1014,0,41.0,6.206896551724138,0.9761904761904762,AAPL@2013-10-07 train=1 serve=42 (value_mismatch),SBUX@2001-10-01 train=15 serve=45 (value_mismatch),CNC@2005-10-31 train=15 serve=3 (value_mismatch)
+mkt_spy_roc_20,286,23,0.0804,0,0.03585028796579625,0.008864496604455346,1.3180753078308811,DE@2022-06-02 train=0.00865132 serve=-0.027199 (value_mismatch),UNP@2022-06-27 train=-0.0601829 serve=-0.0371111 (value_mismatch),ECL@2022-12-07 train=0.0508648 serve=0.0292146 (value_mismatch)
+pat_deepest_pass,286,22,0.0769,0,24.0,8.227272727272727,1.0,AAPL@2013-10-07 train=7 serve=31 (value_mismatch),APH@2005-10-17 train=32 serve=18 (value_mismatch),VZ@2006-11-06 train=11 serve=0 (value_mismatch)
+pat_deepest_pass_capped30,286,22,0.0769,0,23.0,7.954545454545454,1.0,AAPL@2013-10-07 train=7 serve=30 (value_mismatch),APH@2005-10-17 train=30 serve=18 (value_mismatch),VZ@2006-11-06 train=11 serve=0 (value_mismatch)
+pat_depth_x_vix,286,22,0.0769,0,1.2364760432766615,0.5224801016294284,1.0,AAPL@2013-10-07 train=0.360639 serve=1.59711 (value_mismatch),VZ@2006-11-06 train=0.985663 serve=0 (value_mismatch),APH@2005-10-17 train=2.18132 serve=1.22699 (value_mismatch)
+mkt_breadth_momentum,286,21,0.0734,0,0.4430348360260461,0.12389206829115902,1.7895140719450584,AXP@2024-09-16 train=-0.666548 serve=-0.223513 (value_mismatch),GPN@2024-06-11 train=-0.875814 serve=-0.501299 (value_mismatch),AES@2023-06-16 train=0.268955 serve=0.0620226 (value_mismatch)
+mkt_vix_percentile_60d,286,21,0.0734,0,0.016666666666666663,0.009126984126984133,0.12499999999999997,CTAS@2000-01-19 train=0.4 serve=0.416667 (value_mismatch),TPR@2023-11-08 train=0.266667 serve=0.283333 (value_mismatch),JBL@2003-12-29 train=0.541667 serve=0.55 (value_mismatch)
+pat_dir_x_sector_trend,286,21,0.0734,21,0.0,0.0,0.0,PLD@2000-06-08 train=-1 serve=NaN (nan_mismatch),BXP@2001-01-18 train=-1 serve=NaN (nan_mismatch),TTWO@2002-03-12 train=-1 serve=NaN (nan_mismatch)
+mkt_yield_curve_slope,286,20,0.0699,0,0.12840000000000007,0.031165000000000047,1.3047619047619212,DRI@2008-12-02 train=-0.2567 serve=-0.1283 (value_mismatch),FAST@2024-11-11 train=-0.0628 serve=-0.1273 (value_mismatch),REGN@2008-07-08 train=0.0621 serve=0.1201 (value_mismatch)
+pat_consistency_std,286,20,0.0699,0,0.08031824455354626,0.01695878577366333,1.0,JBL@2009-12-07 train=0.0803182 serve=0 (value_mismatch),AAPL@2013-10-07 train=0 serve=0.0461157 (value_mismatch),VZ@2006-11-06 train=0.0363879 serve=0 (value_mismatch)
+ta_rvol_20,286,19,0.0664,0,0.5651688171126577,0.03094750379930809,0.5544114293537413,CL@2009-03-18 train=1.0194 serve=0.454234 (value_mismatch),ERIE@2006-07-31 train=1.05855 serve=1.04967 (value_mismatch),SBUX@2001-10-01 train=0.586358 serve=0.589162 (value_mismatch)
+ctx_pct_from_52w_high,286,19,0.0664,0,0.3996487183225312,0.02443348899722287,0.5937281019606493,CL@2009-03-18 train=-0.273469 serve=-0.673117 (value_mismatch),C@2002-10-18 train=-0.214746 serve=-0.272096 (value_mismatch),KLAC@2013-03-25 train=-0.102681 serve=-0.108391 (value_mismatch)
+ctx_pct_from_52w_low,286,16,0.0559,0,0.4168809534099485,0.0361362586703017,0.858128519090364,CL@2009-03-18 train=0.0689215 serve=0.485802 (value_mismatch),C@2002-10-18 train=0.661069 serve=0.540586 (value_mismatch),OKE@2004-11-29 train=0.452526 serve=0.428506 (value_mismatch)
+ta_trend_long,286,14,0.049,0,9.699962299930839,0.9693669214451128,0.18056782113807188,CL@2009-03-18 train=44.0193 serve=53.7192 (value_mismatch),C@2002-10-18 train=62.6836 serve=60.0049 (value_mismatch),KLAC@2013-03-25 train=44.897 serve=43.9464 (value_mismatch)
+pat_best_winrate,286,14,0.049,0,0.19999999999999996,0.09505970220255933,0.19999999999999996,VRTX@2025-10-27 train=0.8 serve=1 (value_mismatch),JBL@2003-12-29 train=0.857143 serve=1 (value_mismatch),XOM@2005-02-07 train=0.857143 serve=1 (value_mismatch)
+pat_worst_winrate,286,11,0.0385,0,0.19999999999999996,0.05411255411255407,0.19999999999999996,JBL@2009-12-07 train=0.8 serve=1 (value_mismatch),VRSN@2000-07-31 train=0.857143 serve=0.8 (value_mismatch),JCI@2009-09-28 train=0.8 serve=0.857143 (value_mismatch)
+pat_pe_deepest,286,9,0.0315,0,11.0,5.777777777777778,1.0,AAPL@2013-10-07 train=0 serve=11 (value_mismatch),JCI@2009-09-28 train=10 serve=0 (value_mismatch),LII@2003-09-22 train=0 serve=6 (value_mismatch)
+ta_trend_direction_match,286,9,0.0315,0,1.0,1.0,1.0,CRH@2000-06-01 train=0 serve=1 (value_mismatch),VTRS@2001-07-16 train=-1 serve=0 (value_mismatch),APH@2003-01-14 train=-1 serve=0 (value_mismatch)
+pat_pe_match,286,6,0.021,0,1.0,1.0,1.0,LII@2003-09-22 train=0 serve=1 (value_mismatch),CB@2005-10-17 train=1 serve=0 (value_mismatch),JCI@2009-09-28 train=1 serve=0 (value_mismatch)
+pat_recent_vs_deep_sharpe,286,2,0.007,1,0.5241379310344825,0.5241379310344825,0.1871921182266009,SBUX@2001-10-01 train=NaN serve=1.92857 (nan_mismatch),ICE@2023-05-08 train=2.27586 serve=2.8 (value_mismatch),
+pat_post_cliff,286,2,0.007,0,0.4444444444444443,0.24722222222222212,1.3333333333333333,CL@2009-03-18 train=0.111111 serve=-0.333333 (value_mismatch),KLAC@2013-03-25 train=-0.1 serve=-0.15 (value_mismatch),
+pat_sharpness,286,2,0.007,0,0.35016835016835,0.21649204257899907,0.3209876543209875,CL@2009-03-18 train=1.09091 serve=0.740741 (value_mismatch),KLAC@2013-03-25 train=0.952381 serve=0.869565 (value_mismatch),
+pat_neighbor_avg_wr,286,2,0.007,0,0.13888888888888884,0.09444444444444444,0.18518518518518512,CL@2009-03-18 train=0.611111 serve=0.75 (value_mismatch),KLAC@2013-03-25 train=0.525 serve=0.575 (value_mismatch),
+pat_pre_slope,286,2,0.007,0,0.11111111111111116,0.10555555555555557,1.0,CL@2009-03-18 train=0.222222 serve=0.111111 (value_mismatch),KLAC@2013-03-25 train=-0.1 serve=0 (value_mismatch),
+mkt_yield_curve_10y2y,286,2,0.007,0,0.03210000000000002,0.01805000000000001,0.036332767402376925,DAL@2016-10-10 train=0.8835 serve=0.8514 (value_mismatch),ADBE@2017-10-09 train=0.8527 serve=0.8487 (value_mismatch),
+mkt_fed_rate_level,286,2,0.007,2,0.0,0.0,0.0,RMD@2020-03-27 train=0.003 serve=NaN (nan_mismatch),AEE@2020-03-26 train=0.003 serve=NaN (nan_mismatch),
+pat_passes_recent_10,286,1,0.0035,0,1.0,1.0,1.0,SBUX@2001-10-01 train=0 serve=1 (value_mismatch),,
+pat_hit_last_year,286,1,0.0035,0,1.0,1.0,1.0,CL@2009-03-18 train=0 serve=1 (value_mismatch),,
+pat_direction,286,0,0.0,0,0.0,0.0,0.0,,,
+pat_daysOut,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_vix_level,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_vix_5d_change,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_vix_term_structure,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_spy_above_sma200,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_adv_decl_ratio_10d,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_sector_rotation,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_vix_regime_bucket,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_spx_seasonal_wr,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_spx_seasonal_ret,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_spx_seasonal_regime,286,0,0.0,0,0.0,0.0,0.0,,,
+mkt_spx_dir_alignment,286,0,0.0,0,0.0,0.0,0.0,,,
+cal_month,286,0,0.0,0,0.0,0.0,0.0,,,
+cal_day_of_year,286,0,0.0,0,0.0,0.0,0.0,,,
+cal_week_of_month,286,0,0.0,0,0.0,0.0,0.0,,,
+cal_is_opex_week,286,0,0.0,0,0.0,0.0,0.0,,,
+cal_pe_year,286,0,0.0,0,0.0,0.0,0.0,,,
+pat_dir_x_mkt_trend,286,0,0.0,0,0.0,0.0,0.0,,,

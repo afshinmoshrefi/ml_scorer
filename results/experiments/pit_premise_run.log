@@ -1,0 +1,56 @@
+[Parallel(n_jobs=24)]: Using backend LokyBackend with 24 concurrent workers.
+[Parallel(n_jobs=24)]: Done  24 tasks      | elapsed:    1.8s
+[Parallel(n_jobs=24)]: Done 114 tasks      | elapsed:    5.5s
+[Parallel(n_jobs=24)]: Done 240 tasks      | elapsed:   11.2s
+[Parallel(n_jobs=24)]: Done 402 tasks      | elapsed:   19.1s
+[Parallel(n_jobs=24)]: Done 503 out of 503 | elapsed:   24.2s finished
+PIT premise test: 503 symbols x 122 month-days x 5 daysOut x 2 directions, fwd years 2000-2025, njobs=24
+13,218,378 pattern-year rows from 448 symbols in 25s
+
+=== PIT PREMISE SUMMARY (per direction x depth bucket) ===
+direction    depth_bucket         n   fwd_wr  fwd_avg_ret_pct  ret_t_stat
+        l never_qualified 2531941.0 0.576857         1.613382  230.303030
+        l       depth_5_9 1410960.0 0.581587         1.740537  183.996244
+        l     depth_10_14  813070.0 0.594148         2.169721  145.734686
+        l     depth_15_19  399863.0 0.597345         1.989748  115.067069
+        l     depth_20_29  313116.0 0.619476         2.617648  133.695722
+        l    depth_30plus   96461.0 0.623921         2.805395   78.993260
+        s never_qualified 4458202.0 0.410946        -1.912029 -345.417466
+        s       depth_5_9  886504.0 0.421946        -1.553884 -134.776228
+        s     depth_10_14  174870.0 0.427981        -1.453520  -58.744115
+        s     depth_15_19   35212.0 0.448512        -0.863035  -16.361376
+        s     depth_20_29    9901.0 0.473993        -0.209211   -2.163217
+        s    depth_30plus     722.0 0.440443        -3.385295   -5.374269
+
+=== VERDICT ===
+{
+  "l": {
+    "n_unqualified": 2531941,
+    "wr_unqualified": 0.5768570436672893,
+    "n_q10_8": 867176,
+    "wr_q10_8": 0.604741136747327,
+    "lift_q10_8_pp": 2.7884093080037697,
+    "n_deep15plus": 809440,
+    "wr_deep15plus": 0.6090729393160703,
+    "lift_deep15plus_pp": 3.2215895648781023,
+    "avg_ret_q10_8_pct": 2.2839158891413436,
+    "avg_ret_unqualified_pct": 1.6133818490094483
+  },
+  "s": {
+    "n_unqualified": 4458202,
+    "wr_unqualified": 0.4109463860094271,
+    "n_q10_8": 94392,
+    "wr_q10_8": 0.4343058733790999,
+    "lift_q10_8_pp": 2.3359487369672802,
+    "n_deep15plus": 45835,
+    "wr_deep15plus": 0.4538889494927457,
+    "lift_deep15plus_pp": 4.29425634833186,
+    "avg_ret_q10_8_pct": -1.2273606283196443,
+    "avg_ret_unqualified_pct": -1.9120287390354551
+  },
+  "context": {
+    "training_base_wr_full_history_selected": 0.678,
+    "training_selection_gap_claimed_pp": 13.0,
+    "note": "lift_*_pp is the HONEST forward edge of PIT qualification vs never-qualified patterns in the same hindsight-free universe. Compare against the 13pp qualify/not gap measured on the full-history-mined training data: the difference is the look-ahead component."
+  }
+}

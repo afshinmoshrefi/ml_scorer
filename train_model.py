@@ -184,6 +184,29 @@ FILTER_AGAINST_SEASON = False  # enable with --season-filter CLI flag
 # pat_direction is constant within each split (always 1 or always 0)
 SPLIT_DROP_FEATURES = ['pat_direction']
 
+# Cluster-aware sample weighting: weight each row by 1/cluster_size where a
+# cluster is one seasonal idea = (symbol, entry month-day, direction). Dense
+# pattern families (one symbol/date expressed as many daysOut variants) otherwise
+# dominate training and inflate confidence/miscalibration on crowded setups.
+# Enable with --cluster-weight. Weights are normalised to mean 1.0 so the
+# effective learning-rate / regularisation scale is unchanged.
+CLUSTER_WEIGHT = False
+
+# Optional suffix appended to walk-forward prediction / calibration / results
+# filenames (via --pred-suffix). Lets an experiment write isolated outputs
+# (e.g. wf_predictions_sr_clw.parquet) without clobbering the production-path
+# artifacts. Empty string = production paths (default).
+PRED_SUFFIX = ''
+
+# Purged walk-forward: drop training rows whose holding window crosses into the
+# validation year. A 90-day hold entered in November of the last train year
+# resolves INSIDE the val year, sharing the val year's price path with val
+# samples -- a boundary leak that inflates val metrics (worst for 61_90, where
+# ~quarter of last-train-year rows overlap). Buffer covers the exit forward
+# search (range(0,5)) plus weekends. Enable with --purge-overlap.
+PURGE_OVERLAP = False
+PURGE_BUFFER_DAYS = 7
+
 
 # ======================================================================
 # Evaluation helpers
@@ -400,9 +423,12 @@ def load_training_data():
             f"Check FEATURE_COLS and training data."
         )
 
-    # Add year column
-    df['year'] = pd.to_datetime(df['date']).dt.year.astype(np.int16)
-    df.drop(columns=['date'], inplace=True)
+    # Add year column. Keep 'date' (as datetime64) -- it is needed for honest
+    # calibration cohorts, cluster-aware sample weighting/eval (symbol+month-day+
+    # direction), and for saving dated walk-forward predictions. The extra column
+    # is never passed to the models (X uses feature_cols only).
+    df['date'] = pd.to_datetime(df['date'])
+    df['year'] = df['date'].dt.year.astype(np.int16)
 
     # Downcast float64 -> float32
     downcast_cols = available + ['actual_return']
@@ -434,6 +460,20 @@ def load_training_data():
         n_removed = against_mask.sum()
         log.info(f"Against-season filter: removing {n_removed:,} samples ({n_removed/len(df)*100:.1f}%)")
         df = df[~against_mask].reset_index(drop=True)
+        gc.collect()
+
+    # Cluster-aware sample weights: 1/cluster_size, cluster = symbol|month-day|direction.
+    # Computed after all row filtering so cluster sizes reflect the final training set.
+    if CLUSTER_WEIGHT and {'symbol', 'date', 'direction'}.issubset(df.columns):
+        md = df['date'].dt.strftime('%m-%d')
+        cluster = df['symbol'].astype(str) + '|' + md + '|' + df['direction'].astype(str)
+        csize = cluster.map(cluster.value_counts()).astype(np.float64)
+        w = 1.0 / csize
+        w *= len(df) / w.sum()  # normalise to mean 1.0 (keeps LR/reg scale stable)
+        df['sample_weight'] = w.astype(np.float32)
+        log.info(f"Cluster-aware weighting ON: {cluster.nunique():,} clusters over "
+                 f"{len(df):,} rows, weight range [{w.min():.3f}, {w.max():.3f}]")
+        del md, cluster, csize, w
         gc.collect()
 
     log.info(f"Using {len(available)} features")
@@ -553,12 +593,160 @@ def run_optuna_tuning(df, feature_cols, n_trials=75):
 
 
 # ======================================================================
+# Per-model tuning (XGBoost + CatBoost) -- multi-window AUC objective
+# ======================================================================
+# The legacy pipeline tuned only LightGBM (RMSE) and made XGBoost/CatBoost
+# inherit those params (CatBoost depth was even hardcoded to 6), leaving 2 of 3
+# ensemble members effectively untuned. These tuners give XGB and CatBoost their
+# own NATIVE search, selected by mean ranking AUC across several validation years
+# -- a regime-robust proxy for the resolution term of the Brier score, which is
+# the calibration-reliability objective. Results are written to algo-tagged param
+# files that train_xgb / train_catboost self-load (backward compatible: if the
+# file is absent, the legacy LGB-derived params are used).
+
+TUNE_TRAIN_END = 2020                       # tuning trains on years <= this
+TUNE_VAL_YEARS = [2021, 2022, 2023, 2024]   # held-out years scored for mean AUC
+TUNE_ROUNDS = 350                           # fixed budget per trial (fair comparison)
+
+
+def _native_params_path(algo):
+    tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
+    target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
+    return os.path.join(RESULTS_DIR, f'v2_tuned_params_{algo}{tier_tag}{target_tag}.json')
+
+
+def _load_native_params(algo):
+    """Load algo-specific native tuned params if present, else None."""
+    path = _native_params_path(algo)
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception as e:
+            log.warning(f"Could not read native params for {algo} at {path}: {e}")
+    return None
+
+
+def _prep_tuning_arrays(df, feature_cols):
+    """Subsampled train (year <= TUNE_TRAIN_END) + per-year validation arrays."""
+    train_mask = (df['year'] <= TUNE_TRAIN_END).values
+    X_tr = df.loc[train_mask, feature_cols].values
+    y_tr = df.loc[train_mask, LABEL_COL].values
+    max_rows = 1_500_000
+    if len(X_tr) > max_rows:
+        rng = np.random.RandomState(42)
+        idx = rng.choice(len(X_tr), max_rows, replace=False)
+        X_tr, y_tr = X_tr[idx], y_tr[idx]
+    val_sets = []
+    for vy in TUNE_VAL_YEARS:
+        m = (df['year'] == vy).values
+        if m.sum() == 0:
+            continue
+        Xv = df.loc[m, feature_cols].values
+        hv = (df.loc[m, BINARY_LABEL_COL].values if BINARY_LABEL_COL in df.columns
+              else (df.loc[m, LABEL_COL].values > 0).astype(int))
+        val_sets.append((vy, Xv, hv))
+    log.info(f"  Tuning arrays: train={len(X_tr):,} (<= {TUNE_TRAIN_END}), "
+             f"val years={[v[0] for v in val_sets]}")
+    return X_tr, y_tr, val_sets
+
+
+def _mean_val_auc(pred_fn, val_sets):
+    """Mean AUC of pred_fn(X) vs hit across validation years."""
+    aucs = []
+    for _vy, Xv, hv in val_sets:
+        if len(np.unique(hv)) < 2:
+            continue
+        try:
+            aucs.append(roc_auc_score(hv, pred_fn(Xv)))
+        except ValueError:
+            continue
+    return float(np.mean(aucs)) if aucs else 0.5
+
+
+def tune_xgb(df, feature_cols, n_trials=40):
+    """Optuna search for XGBoost native params, maximising mean validation AUC."""
+    log.info(f"\n{'='*60}\nOPTUNA XGBOOST ({n_trials} trials, multi-window AUC)\n{'='*60}")
+    X_tr, y_tr, val_sets = _prep_tuning_arrays(df, feature_cols)
+    dtrain = xgb.DMatrix(X_tr, label=y_tr, feature_names=feature_cols)
+    dvals = [(vy, xgb.DMatrix(Xv, feature_names=feature_cols), hv) for vy, Xv, hv in val_sets]
+
+    def objective(trial):
+        p = {
+            'objective': 'reg:squarederror', 'eval_metric': 'rmse', 'tree_method': 'hist',
+            'n_jobs': -1, 'seed': 42, 'grow_policy': 'depthwise', 'max_bin': 255,
+            'max_depth': trial.suggest_int('max_depth', 3, 10),
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.1, log=True),
+            'min_child_weight': trial.suggest_int('min_child_weight', 1, 300),
+            'subsample': trial.suggest_float('subsample', 0.5, 1.0),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
+            'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
+            'gamma': trial.suggest_float('gamma', 0.0, 5.0),
+        }
+        model = xgb.train(p, dtrain, num_boost_round=TUNE_ROUNDS)
+        aucs = []
+        for _vy, dv, hv in dvals:
+            if len(np.unique(hv)) < 2:
+                continue
+            try:
+                aucs.append(roc_auc_score(hv, model.predict(dv)))
+            except ValueError:
+                continue
+        return float(np.mean(aucs)) if aucs else 0.5
+
+    t0 = time.time()
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=n_trials)
+    best = {'objective': 'reg:squarederror', 'eval_metric': 'rmse', 'tree_method': 'hist',
+            'n_jobs': -1, 'seed': 42, 'grow_policy': 'depthwise', 'max_bin': 255}
+    best.update(study.best_params)
+    path = _native_params_path('xgb')
+    with open(path, 'w') as f:
+        json.dump(best, f, indent=2)
+    log.info(f"XGB best mean-AUC={study.best_value:.4f} in {time.time()-t0:.0f}s; saved {path}")
+    del dtrain, dvals
+    gc.collect()
+    return best
+
+
+def tune_catboost(df, feature_cols, n_trials=25):
+    """Optuna search for CatBoost native params (depth no longer fixed at 6)."""
+    log.info(f"\n{'='*60}\nOPTUNA CATBOOST ({n_trials} trials, multi-window AUC)\n{'='*60}")
+    X_tr, y_tr, val_sets = _prep_tuning_arrays(df, feature_cols)
+
+    def objective(trial):
+        model = CatBoostRegressor(
+            iterations=TUNE_ROUNDS,
+            learning_rate=trial.suggest_float('learning_rate', 0.01, 0.1, log=True),
+            depth=trial.suggest_int('depth', 4, 10),
+            l2_leaf_reg=trial.suggest_float('l2_leaf_reg', 1.0, 30.0, log=True),
+            random_strength=trial.suggest_float('random_strength', 0.0, 2.0),
+            bagging_temperature=trial.suggest_float('bagging_temperature', 0.0, 2.0),
+            random_seed=42, verbose=0, task_type='CPU', thread_count=-1,
+        )
+        model.fit(X_tr, y_tr, verbose=0)
+        return _mean_val_auc(model.predict, val_sets)
+
+    t0 = time.time()
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=n_trials)
+    best = dict(study.best_params)
+    path = _native_params_path('catboost')
+    with open(path, 'w') as f:
+        json.dump(best, f, indent=2)
+    log.info(f"CatBoost best mean-AUC={study.best_value:.4f} in {time.time()-t0:.0f}s; saved {path}")
+    gc.collect()
+    return best
+
+
+# ======================================================================
 # Ensemble Training
 # ======================================================================
 
-def train_lgb(X_train, y_train, X_val, y_val, feature_cols, params):
+def train_lgb(X_train, y_train, X_val, y_val, feature_cols, params, w_train=None):
     """Train a LightGBM regression model."""
-    dtrain = lgb.Dataset(X_train, label=y_train, feature_name=feature_cols, free_raw_data=True)
+    dtrain = lgb.Dataset(X_train, label=y_train, weight=w_train, feature_name=feature_cols, free_raw_data=True)
     dval = lgb.Dataset(X_val, label=y_val, reference=dtrain, free_raw_data=True)
 
     model = lgb.train(
@@ -569,26 +757,37 @@ def train_lgb(X_train, y_train, X_val, y_val, feature_cols, params):
     return model
 
 
-def train_xgb(X_train, y_train, X_val, y_val, feature_cols, params):
-    """Train an XGBoost regression model."""
-    xgb_params = {
-        'objective': 'reg:squarederror',
-        'eval_metric': 'rmse',
-        'tree_method': 'hist',
-        'n_jobs': -1,
-        'seed': 42,
-        'max_leaves': params.get('num_leaves', 127),
-        'learning_rate': params.get('learning_rate', 0.05),
-        'min_child_weight': params.get('min_child_samples', 100),
-        'colsample_bytree': params.get('feature_fraction', 0.8),
-        'subsample': params.get('bagging_fraction', 0.8),
-        'reg_alpha': params.get('lambda_l1', 0.1),
-        'reg_lambda': params.get('lambda_l2', 0.1),
-        'max_bin': params.get('max_bin', 255),
-        'grow_policy': 'lossguide',
-    }
+def train_xgb(X_train, y_train, X_val, y_val, feature_cols, params, w_train=None):
+    """Train an XGBoost regression model.
 
-    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=feature_cols)
+    Uses XGBoost's own Optuna-tuned native params if a v2_tuned_params_xgb*.json
+    exists for the active tier/target (see tune_xgb); otherwise falls back to the
+    legacy behaviour of deriving params from the LightGBM search.
+    """
+    native = _load_native_params('xgb')
+    if native:
+        xgb_params = {'objective': 'reg:squarederror', 'eval_metric': 'rmse',
+                      'tree_method': 'hist', 'n_jobs': -1, 'seed': 42, 'max_bin': 255}
+        xgb_params.update(native)
+    else:
+        xgb_params = {
+            'objective': 'reg:squarederror',
+            'eval_metric': 'rmse',
+            'tree_method': 'hist',
+            'n_jobs': -1,
+            'seed': 42,
+            'max_leaves': params.get('num_leaves', 127),
+            'learning_rate': params.get('learning_rate', 0.05),
+            'min_child_weight': params.get('min_child_samples', 100),
+            'colsample_bytree': params.get('feature_fraction', 0.8),
+            'subsample': params.get('bagging_fraction', 0.8),
+            'reg_alpha': params.get('lambda_l1', 0.1),
+            'reg_lambda': params.get('lambda_l2', 0.1),
+            'max_bin': params.get('max_bin', 255),
+            'grow_policy': 'lossguide',
+        }
+
+    dtrain = xgb.DMatrix(X_train, label=y_train, weight=w_train, feature_names=feature_cols)
     dval = xgb.DMatrix(X_val, label=y_val, feature_names=feature_cols)
 
     model = xgb.train(
@@ -600,20 +799,28 @@ def train_xgb(X_train, y_train, X_val, y_val, feature_cols, params):
     return model
 
 
-def train_catboost(X_train, y_train, X_val, y_val, feature_cols, params):
-    """Train a CatBoost regression model."""
+def train_catboost(X_train, y_train, X_val, y_val, feature_cols, params, w_train=None):
+    """Train a CatBoost regression model.
+
+    Uses CatBoost's own Optuna-tuned native params if a
+    v2_tuned_params_catboost*.json exists for the active tier/target (see
+    tune_catboost); otherwise falls back to the legacy params (depth fixed at 6).
+    """
+    native = _load_native_params('catboost') or {}
     model = CatBoostRegressor(
         iterations=NUM_BOOST_ROUNDS,
-        learning_rate=params.get('learning_rate', 0.05),
-        depth=6,
-        l2_leaf_reg=params.get('lambda_l2', 0.1),
+        learning_rate=native.get('learning_rate', params.get('learning_rate', 0.05)),
+        depth=native.get('depth', 6),
+        l2_leaf_reg=native.get('l2_leaf_reg', params.get('lambda_l2', 0.1)),
+        random_strength=native.get('random_strength', 1.0),
+        bagging_temperature=native.get('bagging_temperature', 1.0),
         random_seed=42,
         verbose=100,
         early_stopping_rounds=EARLY_STOPPING_ROUNDS,
         task_type='CPU',
         thread_count=-1,
     )
-    model.fit(X_train, y_train, eval_set=(X_val, y_val), use_best_model=True)
+    model.fit(X_train, y_train, sample_weight=w_train, eval_set=(X_val, y_val), use_best_model=True)
     return model
 
 
@@ -921,6 +1128,21 @@ def train_final_model_split(df, feature_cols, params):
     return all_models, importance
 
 
+def _purge_overlap_mask(df, train_mask, val_year):
+    """Remove training rows whose holding window crosses into the val year.
+
+    Returns (purged_train_mask, n_purged). No-op unless PURGE_OVERLAP is on and
+    the per-row date/daysOut columns are available.
+    """
+    if not PURGE_OVERLAP or 'date' not in df.columns or 'daysOut' not in df.columns:
+        return train_mask, 0
+    cutoff = pd.Timestamp(val_year, 1, 1)
+    window_end = df['date'] + pd.to_timedelta(df['daysOut'] + PURGE_BUFFER_DAYS, unit='D')
+    overlap = (window_end >= cutoff).values
+    purged = train_mask & overlap
+    return train_mask & ~overlap, int(purged.sum())
+
+
 def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_predictions=False):
     """Run walk-forward validation with ensemble (LightGBM + XGBoost + CatBoost)."""
     results = []
@@ -946,6 +1168,9 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_prediction
             train_mask = (df['year'] <= train_end).values
 
         val_mask = (df['year'] == val_year).values
+        train_mask, n_purged = _purge_overlap_mask(df, train_mask, val_year)
+        if n_purged:
+            log.info(f"Purged {n_purged:,} train rows whose holding window crosses into {val_year}")
 
         X_train = df.loc[train_mask, feature_cols].values
         y_train = df.loc[train_mask, LABEL_COL].values
@@ -953,6 +1178,7 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_prediction
         y_val = df.loc[val_mask, LABEL_COL].values
         y_val_binary = df.loc[val_mask, BINARY_LABEL_COL].values if BINARY_LABEL_COL in df.columns else (y_val > 0).astype(int)
         actual_return = df.loc[val_mask, 'actual_return'].values
+        w_train = df.loc[train_mask, 'sample_weight'].values if 'sample_weight' in df.columns else None
 
         if len(X_val) == 0:
             log.warning(f"No validation data for {val_year}, skipping")
@@ -966,17 +1192,17 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_prediction
         models = []
 
         log.info("Training LightGBM...")
-        lgb_model = train_lgb(X_train, y_train, X_val, y_val, feature_cols, params)
+        lgb_model = train_lgb(X_train, y_train, X_val, y_val, feature_cols, params, w_train=w_train)
         models.append(('lgb', lgb_model))
         log.info(f"  LGB best iteration: {lgb_model.best_iteration}")
 
         log.info("Training XGBoost...")
-        xgb_model = train_xgb(X_train, y_train, X_val, y_val, feature_cols, params)
+        xgb_model = train_xgb(X_train, y_train, X_val, y_val, feature_cols, params, w_train=w_train)
         models.append(('xgb', xgb_model))
         log.info(f"  XGB best iteration: {xgb_model.best_iteration}")
 
         log.info("Training CatBoost...")
-        cb_model = train_catboost(X_train, y_train, X_val, y_val, feature_cols, params)
+        cb_model = train_catboost(X_train, y_train, X_val, y_val, feature_cols, params, w_train=w_train)
         models.append(('catboost', cb_model))
         log.info(f"  CatBoost best iteration: {cb_model.best_iteration_}")
 
@@ -1054,6 +1280,11 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_prediction
             pred_df = pd.DataFrame({
                 'val_year': val_year,
                 'predicted': y_pred,
+                # Per-model OOF predictions: required to fit learned ensemble
+                # weights / stacking offline without re-running walk-forward.
+                'pred_lgb': lgb_pred,
+                'pred_xgb': xgb_pred,
+                'pred_cb': cb_pred,
                 'actual_return': actual_return,
                 'hit_target': y_val_binary,
             })
@@ -1091,7 +1322,7 @@ def walk_forward_train(df, feature_cols, params, pe_cycle=False, save_prediction
         pred_all = pd.concat(all_predictions, ignore_index=True)
         tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
         target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else '_sr'
-        pred_path = os.path.join(RESULTS_DIR, f'wf_predictions{target_tag}{tier_tag}.parquet')
+        pred_path = os.path.join(RESULTS_DIR, f'wf_predictions{target_tag}{tier_tag}{PRED_SUFFIX}.parquet')
         pred_all.to_parquet(pred_path, index=False)
         log.info(f"\nSaved {len(pred_all):,} walk-forward predictions to {pred_path}")
         log.info(f"  Columns: {list(pred_all.columns)}")
@@ -1161,9 +1392,25 @@ def build_calibration_tables(pred_path):
         log.info(f"  {b['bin']:4d} [{b['pred_min']:7.2f}, {b['pred_max']:7.2f}] "
                 f"{b['n_samples']:8,d} {b['win_prob']:8.3f} {b['p_hit_pred']:8.3f}")
 
+    # Platt scaling for win_prob (SR only). The calibration lab found a logistic
+    # map sigmoid(a*pred + b) is the most consistent calibrator across tiers and
+    # substantially improves worst-case tail reliability (MCE) on the longer-hold
+    # tiers (e.g. 61_90 MCE 0.229 -> 0.053), while being smooth, monotonic and
+    # graceful in the tails (no hard bin-clamp). scorer.py uses this for win_prob
+    # when present and falls back to the binned win_prob otherwise (backward compat).
+    if not is_mfe:
+        from sklearn.linear_model import LogisticRegression
+        y_win = (df['actual_return'] > 0).astype(int).values
+        x_pred = df['predicted'].values.reshape(-1, 1)
+        lr = LogisticRegression(max_iter=1000)
+        lr.fit(x_pred, y_win)
+        calibration['platt'] = {'a': float(lr.coef_[0][0]), 'b': float(lr.intercept_[0])}
+        log.info(f"  Platt win_prob: sigmoid({calibration['platt']['a']:.5f} * pred "
+                 f"+ {calibration['platt']['b']:.5f})")
+
     # Save
     tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
-    cal_path = os.path.join(RESULTS_DIR, f'calibration_{target_label}{tier_tag}.json')
+    cal_path = os.path.join(RESULTS_DIR, f'calibration_{target_label}{tier_tag}{PRED_SUFFIX}.json')
     with open(cal_path, 'w') as f:
         json.dump(calibration, f, indent=2)
     log.info(f"\n  Saved calibration to {cal_path}")
@@ -1179,12 +1426,16 @@ def train_final_model(df, feature_cols, params):
 
     train_mask = (df['year'] <= 2024).values
     val_mask = (df['year'] == 2025).values
+    train_mask, n_purged = _purge_overlap_mask(df, train_mask, 2025)
+    if n_purged:
+        log.info(f"Purged {n_purged:,} train rows whose holding window crosses into 2025")
 
     X_train = df.loc[train_mask, feature_cols].values
     y_train = df.loc[train_mask, LABEL_COL].values
     X_val = df.loc[val_mask, feature_cols].values
     y_val = df.loc[val_mask, LABEL_COL].values
     y_val_binary = df.loc[val_mask, BINARY_LABEL_COL].values if BINARY_LABEL_COL in df.columns else (y_val > 0).astype(int)
+    w_train = df.loc[train_mask, 'sample_weight'].values if 'sample_weight' in df.columns else None
 
     log.info(f"Train: {len(X_train):,} samples")
     log.info(f"Val (2025 holdout): {len(X_val):,} samples")
@@ -1195,7 +1446,7 @@ def train_final_model(df, feature_cols, params):
     os.makedirs(MODEL_DIR, exist_ok=True)
 
     log.info("Training final LightGBM...")
-    lgb_model = train_lgb(X_train, y_train, X_val, y_val, feature_cols, params)
+    lgb_model = train_lgb(X_train, y_train, X_val, y_val, feature_cols, params, w_train=w_train)
     tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
     target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
     lgb_path = os.path.join(MODEL_DIR, f'v2_lgb{tier_tag}{target_tag}_{date_str}.txt')
@@ -1203,13 +1454,13 @@ def train_final_model(df, feature_cols, params):
     log.info(f"LGB saved: {lgb_path} (best iter: {lgb_model.best_iteration})")
 
     log.info("Training final XGBoost...")
-    xgb_model = train_xgb(X_train, y_train, X_val, y_val, feature_cols, params)
+    xgb_model = train_xgb(X_train, y_train, X_val, y_val, feature_cols, params, w_train=w_train)
     xgb_path = os.path.join(MODEL_DIR, f'v2_xgb{tier_tag}{target_tag}_{date_str}.json')
     xgb_model.save_model(xgb_path)
     log.info(f"XGB saved: {xgb_path} (best iter: {xgb_model.best_iteration})")
 
     log.info("Training final CatBoost...")
-    cb_model = train_catboost(X_train, y_train, X_val, y_val, feature_cols, params)
+    cb_model = train_catboost(X_train, y_train, X_val, y_val, feature_cols, params, w_train=w_train)
     cb_path = os.path.join(MODEL_DIR, f'v2_catboost{tier_tag}{target_tag}_{date_str}.cbm')
     cb_model.save_model(cb_path)
     log.info(f"CatBoost saved: {cb_path} (best iter: {cb_model.best_iteration_})")
@@ -1342,6 +1593,14 @@ def main():
     parser.add_argument('--vix-cutoff', type=float, default=None, help='Override VIX cutoff (e.g. 30, 35, 40). 0 to disable.')
     parser.add_argument('--no-season-filter', action='store_true', help='Disable against-season pre-filter')
     parser.add_argument('--split-direction', action='store_true', help='Train separate long/short models')
+    parser.add_argument('--cluster-weight', action='store_true',
+                        help='Weight rows by 1/cluster_size (cluster = symbol + month-day + direction)')
+    parser.add_argument('--tune-ensemble', action='store_true',
+                        help='Also Optuna-tune XGBoost and CatBoost natively (multi-window AUC)')
+    parser.add_argument('--pred-suffix', type=str, default='',
+                        help='Suffix for wf_predictions/calibration/results filenames to isolate experiment outputs')
+    parser.add_argument('--purge-overlap', action='store_true',
+                        help='Purge train rows whose holding window crosses into the validation year')
     parser.add_argument('--tier', type=str, default=None, choices=list(TIERS.keys()),
                         help='DaysOut tier to train (e.g. 31_60, 91_120)')
     parser.add_argument('--all-tiers', action='store_true',
@@ -1355,9 +1614,15 @@ def main():
     args = parser.parse_args()
 
     # Apply CLI overrides to globals
-    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER, LABEL_COL, ACTIVE_TARGET, DATA_PATH_OVERRIDE
+    global VIX_CUTOFF, FILTER_AGAINST_SEASON, ACTIVE_TIER, LABEL_COL, ACTIVE_TARGET, DATA_PATH_OVERRIDE, CLUSTER_WEIGHT, PRED_SUFFIX, PURGE_OVERLAP
     if args.vix_cutoff is not None:
         VIX_CUTOFF = args.vix_cutoff if args.vix_cutoff > 0 else None
+    if args.cluster_weight:
+        CLUSTER_WEIGHT = True
+    if args.pred_suffix:
+        PRED_SUFFIX = args.pred_suffix
+    if args.purge_overlap:
+        PURGE_OVERLAP = True
     if args.no_season_filter:
         FILTER_AGAINST_SEASON = False
     if args.target == 'mfe':
@@ -1445,6 +1710,12 @@ def main_single(args):
     else:
         log.info("Using default LGB params (Optuna skipped, no saved params)")
         params = LGB_PARAMS.copy()
+
+    # Phase 1b: independently tune XGBoost + CatBoost native params (default off).
+    # Writes algo-tagged param files that train_xgb / train_catboost self-load.
+    if args.tune_ensemble and not args.skip_optuna:
+        tune_xgb(df, feature_cols, n_trials=max(20, args.optuna_trials // 2))
+        tune_catboost(df, feature_cols, n_trials=max(15, args.optuna_trials // 3))
 
     if not args.final_only:
         if args.split_direction:
@@ -1569,7 +1840,7 @@ def main_single(args):
         tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
         target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else ''
         suffix = '_split' if args.split_direction else ('_pe_cycle' if args.pe_cycle else '')
-        results_path = os.path.join(RESULTS_DIR, f'v2_walk_forward_results{tier_tag}{target_tag}{suffix}.json')
+        results_path = os.path.join(RESULTS_DIR, f'v2_walk_forward_results{tier_tag}{target_tag}{suffix}{PRED_SUFFIX}.json')
         def convert(obj):
             if isinstance(obj, (np.integer,)):
                 return int(obj)
@@ -1616,7 +1887,7 @@ def main_single(args):
     if args.save_predictions and wf_results:
         tier_tag = f'_{ACTIVE_TIER}' if ACTIVE_TIER != '10_30' else ''
         target_tag = '_mfe' if ACTIVE_TARGET == 'mfe' else '_sr'
-        pred_path = os.path.join(RESULTS_DIR, f'wf_predictions{target_tag}{tier_tag}.parquet')
+        pred_path = os.path.join(RESULTS_DIR, f'wf_predictions{target_tag}{tier_tag}{PRED_SUFFIX}.parquet')
         if os.path.exists(pred_path):
             build_calibration_tables(pred_path)
 

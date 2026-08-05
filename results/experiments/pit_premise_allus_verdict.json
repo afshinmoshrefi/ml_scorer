@@ -1,0 +1,31 @@
+{
+  "l": {
+    "n_unqualified": 12927873,
+    "wr_unqualified": 0.5291564977471546,
+    "n_q10_8": 2526052,
+    "wr_q10_8": 0.5757296366028887,
+    "lift_q10_8_pp": 4.65731388557341,
+    "n_deep15plus": 2011281,
+    "wr_deep15plus": 0.5839880155980194,
+    "lift_deep15plus_pp": 5.483151785086482,
+    "avg_ret_q10_8_pct": 2.611326974943675,
+    "avg_ret_unqualified_pct": 113.64882694646161
+  },
+  "s": {
+    "n_unqualified": 17433787,
+    "wr_unqualified": 0.4467157938777157,
+    "n_q10_8": 743051,
+    "wr_q10_8": 0.49107665557276686,
+    "lift_q10_8_pp": 4.436086169505115,
+    "n_deep15plus": 348905,
+    "wr_deep15plus": 0.5002020607328642,
+    "lift_deep15plus_pp": 5.348626685514851,
+    "avg_ret_q10_8_pct": -18.84921785200759,
+    "avg_ret_unqualified_pct": -83.11594513473098
+  },
+  "context": {
+    "training_base_wr_full_history_selected": 0.678,
+    "training_selection_gap_claimed_pp": 13.0,
+    "note": "lift_*_pp is the HONEST forward edge of PIT qualification vs never-qualified patterns in the same hindsight-free universe. Compare against the 13pp qualify/not gap measured on the full-history-mined training data: the difference is the look-ahead component."
+  }
+}

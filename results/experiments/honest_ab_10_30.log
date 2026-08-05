@@ -1,0 +1,982 @@
+2026-06-09 16:13:57,581 
+============================================================
+2026-06-09 16:13:57,587 Window: Train 2000-2017, Validate 2018
+2026-06-09 16:13:57,587 ============================================================
+2026-06-09 16:13:58,779 Purged 95,380 train rows whose holding window crosses into 2018
+2026-06-09 16:14:12,176 Train: 22,003,130 samples (mean ret: 1.031%)
+2026-06-09 16:14:12,178 Val:   1,398,325 samples (mean ret: 1.876%, win rate: 0.7171)
+2026-06-09 16:14:12,178 Training LightGBM...
+2026-06-09 16:15:28,458   LGB best iteration: 97
+2026-06-09 16:15:28,458 Training XGBoost...
+leaky arm: 62 features | honest arm: 52 features (dropped 17, added 7)
+VIX>35 filter: removed 1,655,419 rows
+Loaded 33,103,353 rows, 76 cols
+
+#################### ARM: leaky (62 features) ####################
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 5.97866
+Early stopping, best iteration is:
+[97]	valid_0's rmse: 5.97651
+[0]	val-rmse:6.12309
+[100]	val-rmse:6.08629
+[200]	val-rmse:6.02332
+[285]	val-rmse:6.02282
+2026-06-09 16:18:53,571   XGB best iteration: 235
+2026-06-09 16:18:53,571 Training CatBoost...
+2026-06-09 16:22:24,028   CatBoost best iteration: 274
+2026-06-09 16:22:24,028 All 3 models trained in 491.8s
+2026-06-09 16:22:29,185 Val metrics (ensemble): AUC=0.6280, RMSE=5.9694, Acc=0.7142
+2026-06-09 16:22:29,185   LGB only: AUC=0.6208, XGB only: AUC=0.6088, CB only: AUC=0.6298
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 16:22:29,794 
+Trading performance (2018):
+2026-06-09 16:22:29,795   baseline  : 1398325 trades, win=0.717, avg_ret=1.88%, sharpe=4.91
+2026-06-09 16:22:29,795   ML_50     : 699162 trades, win=0.780, avg_ret=2.73%, sharpe=7.05
+2026-06-09 16:22:29,795   ML_60     : 559330 trades, win=0.789, avg_ret=2.95%, sharpe=7.53
+2026-06-09 16:22:29,795   ML_70     : 419498 trades, win=0.798, avg_ret=3.19%, sharpe=7.93
+2026-06-09 16:22:29,795   ML_80     : 279666 trades, win=0.807, avg_ret=3.44%, sharpe=8.40
+2026-06-09 16:22:29,795   ML_85     : 209750 trades, win=0.809, avg_ret=3.62%, sharpe=8.59
+2026-06-09 16:22:29,795   ML_90     : 139833 trades, win=0.808, avg_ret=3.92%, sharpe=8.81
+2026-06-09 16:22:29,795   ML_pos    : 1166746 trades, win=0.758, avg_ret=2.24%, sharpe=5.96
+2026-06-09 16:22:30,334   Saved 1,398,325 predictions for calibration
+2026-06-09 16:22:30,662 
+============================================================
+2026-06-09 16:22:30,662 Window: Train 2000-2018, Validate 2019
+2026-06-09 16:22:30,662 ============================================================
+2026-06-09 16:22:31,848 Purged 92,283 train rows whose holding window crosses into 2019
+2026-06-09 16:22:47,691 Train: 23,404,552 samples (mean ret: 1.076%)
+2026-06-09 16:22:47,692 Val:   1,417,598 samples (mean ret: 1.267%, win rate: 0.6417)
+2026-06-09 16:22:47,692 Training LightGBM...
+2026-06-09 16:23:31,574   LGB best iteration: 18
+2026-06-09 16:23:31,575 Training XGBoost...
+0:	learn: 7.6730949	test: 6.1204983	best: 6.1204983 (0)	total: 841ms	remaining: 28m
+100:	learn: 7.4285223	test: 6.0100249	best: 6.0098268 (99)	total: 1m 3s	remaining: 19m 47s
+200:	learn: 7.3032065	test: 5.9754842	best: 5.9750453 (196)	total: 2m 3s	remaining: 18m 28s
+300:	learn: 7.2176658	test: 5.9752089	best: 5.9721404 (274)	total: 3m 7s	remaining: 17m 38s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 5.972140436
+bestIteration = 274
+
+Shrink model to first 275 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[18]	valid_0's rmse: 6.13559
+[0]	val-rmse:6.17193
+[100]	val-rmse:6.09508
+[146]	val-rmse:6.11085
+2026-06-09 16:25:50,778   XGB best iteration: 96
+2026-06-09 16:25:50,778 Training CatBoost...
+2026-06-09 16:27:54,816   CatBoost best iteration: 134
+2026-06-09 16:27:54,817 All 3 models trained in 307.1s
+2026-06-09 16:27:58,526 Val metrics (ensemble): AUC=0.6526, RMSE=6.1126, Acc=0.6440
+2026-06-09 16:27:58,526   LGB only: AUC=0.6014, XGB only: AUC=0.6522, CB only: AUC=0.6477
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 16:27:58,964 
+Trading performance (2019):
+2026-06-09 16:27:58,965   baseline  : 1417598 trades, win=0.642, avg_ret=1.27%, sharpe=3.26
+2026-06-09 16:27:58,965   ML_50     : 708794 trades, win=0.747, avg_ret=2.56%, sharpe=6.59
+2026-06-09 16:27:58,965   ML_60     : 567038 trades, win=0.766, avg_ret=2.83%, sharpe=7.05
+2026-06-09 16:27:58,965   ML_70     : 425276 trades, win=0.787, avg_ret=3.10%, sharpe=7.54
+2026-06-09 16:27:58,965   ML_80     : 283519 trades, win=0.815, avg_ret=3.35%, sharpe=7.96
+2026-06-09 16:27:58,965   ML_85     : 212640 trades, win=0.836, avg_ret=3.58%, sharpe=8.52
+2026-06-09 16:27:58,965   ML_90     : 141750 trades, win=0.844, avg_ret=3.99%, sharpe=8.78
+2026-06-09 16:27:58,965   ML_pos    : 1402794 trades, win=0.644, avg_ret=1.31%, sharpe=3.39
+2026-06-09 16:27:59,559   Saved 1,417,598 predictions for calibration
+2026-06-09 16:28:00,590 
+============================================================
+2026-06-09 16:28:00,590 Window: Train 2000-2019, Validate 2020
+2026-06-09 16:28:00,590 ============================================================
+2026-06-09 16:28:01,750 Purged 105,071 train rows whose holding window crosses into 2020
+2026-06-09 16:28:18,637 Train: 24,809,362 samples (mean ret: 1.094%)
+2026-06-09 16:28:18,639 Val:   1,153,877 samples (mean ret: 1.400%, win rate: 0.6240)
+2026-06-09 16:28:18,639 Training LightGBM...
+2026-06-09 16:32:05,682   LGB best iteration: 381
+2026-06-09 16:32:05,682 Training XGBoost...
+0:	learn: 7.5828839	test: 6.1721607	best: 6.1721607 (0)	total: 713ms	remaining: 23m 45s
+100:	learn: 7.3464360	test: 6.1198811	best: 6.1181087 (73)	total: 1m 3s	remaining: 20m 2s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.109297748
+bestIteration = 134
+
+Shrink model to first 135 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 9.99685
+[200]	valid_0's rmse: 9.97194
+[300]	valid_0's rmse: 9.94413
+[400]	valid_0's rmse: 9.92533
+Early stopping, best iteration is:
+[381]	valid_0's rmse: 9.92391
+[0]	val-rmse:10.44332
+[100]	val-rmse:10.20335
+[200]	val-rmse:10.12147
+[300]	val-rmse:10.09442
+[354]	val-rmse:10.09544
+2026-06-09 16:36:48,787   XGB best iteration: 304
+2026-06-09 16:36:48,802 Training CatBoost...
+2026-06-09 16:40:19,782   CatBoost best iteration: 250
+2026-06-09 16:40:19,782 All 3 models trained in 721.1s
+2026-06-09 16:40:25,904 Val metrics (ensemble): AUC=0.6588, RMSE=10.0757, Acc=0.6318
+2026-06-09 16:40:25,904   LGB only: AUC=0.6729, XGB only: AUC=0.6427, CB only: AUC=0.6171
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 16:40:26,303 
+Trading performance (2020):
+2026-06-09 16:40:26,314   baseline  : 1153877 trades, win=0.624, avg_ret=1.40%, sharpe=2.13
+2026-06-09 16:40:26,314   ML_50     : 576939 trades, win=0.740, avg_ret=4.05%, sharpe=6.65
+2026-06-09 16:40:26,314   ML_60     : 461551 trades, win=0.758, avg_ret=4.59%, sharpe=7.43
+2026-06-09 16:40:26,314   ML_70     : 346164 trades, win=0.780, avg_ret=5.35%, sharpe=8.44
+2026-06-09 16:40:26,314   ML_80     : 230776 trades, win=0.801, avg_ret=6.36%, sharpe=9.76
+2026-06-09 16:40:26,314   ML_85     : 173082 trades, win=0.810, avg_ret=7.01%, sharpe=10.40
+2026-06-09 16:40:26,314   ML_90     : 115388 trades, win=0.806, avg_ret=7.68%, sharpe=10.66
+2026-06-09 16:40:26,314   ML_pos    : 873659 trades, win=0.669, avg_ret=2.28%, sharpe=3.39
+2026-06-09 16:40:28,173   Saved 1,153,877 predictions for calibration
+2026-06-09 16:40:29,219 
+============================================================
+2026-06-09 16:40:29,219 Window: Train 2000-2020, Validate 2021
+2026-06-09 16:40:29,219 ============================================================
+2026-06-09 16:40:30,460 Purged 105,107 train rows whose holding window crosses into 2021
+2026-06-09 16:40:47,051 Train: 25,963,203 samples (mean ret: 1.102%)
+2026-06-09 16:40:47,052 Val:   1,413,828 samples (mean ret: 2.083%, win rate: 0.6890)
+2026-06-09 16:40:47,052 Training LightGBM...
+2026-06-09 16:42:26,818   LGB best iteration: 119
+2026-06-09 16:42:26,818 Training XGBoost...
+0:	learn: 7.5180352	test: 10.4476436	best: 10.4476436 (0)	total: 975ms	remaining: 32m 28s
+100:	learn: 7.2959567	test: 10.3267289	best: 10.3267289 (100)	total: 1m 8s	remaining: 21m 31s
+200:	learn: 7.1824303	test: 10.2986624	best: 10.2983707 (181)	total: 2m 14s	remaining: 20m 3s
+300:	learn: 7.1022976	test: 10.3065767	best: 10.2950139 (250)	total: 3m 21s	remaining: 18m 56s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 10.29501388
+bestIteration = 250
+
+Shrink model to first 251 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 6.16365
+Early stopping, best iteration is:
+[119]	valid_0's rmse: 6.16091
+[0]	val-rmse:6.26297
+[100]	val-rmse:6.20756
+[188]	val-rmse:6.20749
+2026-06-09 16:45:53,889   XGB best iteration: 138
+2026-06-09 16:45:53,911 Training CatBoost...
+2026-06-09 16:50:11,138   CatBoost best iteration: 297
+2026-06-09 16:50:11,139 All 3 models trained in 564.1s
+2026-06-09 16:50:16,098 Val metrics (ensemble): AUC=0.6160, RMSE=6.1529, Acc=0.6440
+2026-06-09 16:50:16,098   LGB only: AUC=0.6147, XGB only: AUC=0.6134, CB only: AUC=0.6088
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 16:50:16,690 
+Trading performance (2021):
+2026-06-09 16:50:16,691   baseline  : 1413828 trades, win=0.689, avg_ret=2.08%, sharpe=5.34
+2026-06-09 16:50:16,691   ML_50     : 706915 trades, win=0.758, avg_ret=3.23%, sharpe=7.87
+2026-06-09 16:50:16,691   ML_60     : 565532 trades, win=0.772, avg_ret=3.54%, sharpe=8.37
+2026-06-09 16:50:16,691   ML_70     : 424148 trades, win=0.789, avg_ret=3.90%, sharpe=8.97
+2026-06-09 16:50:16,691   ML_80     : 282766 trades, win=0.816, avg_ret=4.33%, sharpe=9.92
+2026-06-09 16:50:16,691   ML_85     : 212075 trades, win=0.828, avg_ret=4.51%, sharpe=10.30
+2026-06-09 16:50:16,691   ML_90     : 141383 trades, win=0.839, avg_ret=4.86%, sharpe=10.97
+2026-06-09 16:50:16,691   ML_pos    : 1054463 trades, win=0.723, avg_ret=2.65%, sharpe=6.84
+2026-06-09 16:50:17,602   Saved 1,413,828 predictions for calibration
+2026-06-09 16:50:18,942 
+============================================================
+2026-06-09 16:50:18,942 Window: Train 2000-2021, Validate 2022
+2026-06-09 16:50:18,942 ============================================================
+2026-06-09 16:50:20,149 Purged 105,131 train rows whose holding window crosses into 2022
+2026-06-09 16:50:37,812 Train: 27,377,007 samples (mean ret: 1.160%)
+2026-06-09 16:50:37,813 Val:   1,399,367 samples (mean ret: 4.180%, win rate: 0.8163)
+2026-06-09 16:50:37,814 Training LightGBM...
+2026-06-09 16:52:05,507   LGB best iteration: 88
+2026-06-09 16:52:05,508 Training XGBoost...
+0:	learn: 7.6650138	test: 6.2622152	best: 6.2622152 (0)	total: 925ms	remaining: 30m 49s
+100:	learn: 7.4220059	test: 6.1580765	best: 6.1580765 (100)	total: 1m 12s	remaining: 22m 39s
+200:	learn: 7.2947853	test: 6.1232232	best: 6.1230281 (197)	total: 2m 23s	remaining: 21m 21s
+300:	learn: 7.2136654	test: 6.1122621	best: 6.1110702 (297)	total: 3m 32s	remaining: 19m 57s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.111070154
+bestIteration = 297
+
+Shrink model to first 298 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 7.5813
+Early stopping, best iteration is:
+[88]	valid_0's rmse: 7.56597
+[0]	val-rmse:7.70373
+[100]	val-rmse:7.50425
+[200]	val-rmse:7.41175
+[300]	val-rmse:7.36672
+[359]	val-rmse:7.41642
+2026-06-09 16:57:25,888   XGB best iteration: 309
+2026-06-09 16:57:25,908 Training CatBoost...
+2026-06-09 17:01:52,493   CatBoost best iteration: 286
+2026-06-09 17:01:52,494 All 3 models trained in 674.7s
+2026-06-09 17:01:57,887 Val metrics (ensemble): AUC=0.5603, RMSE=7.4016, Acc=0.7295
+2026-06-09 17:01:57,887   LGB only: AUC=0.5376, XGB only: AUC=0.5757, CB only: AUC=0.5440
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:01:58,388 
+Trading performance (2022):
+2026-06-09 17:01:58,399   baseline  : 1399367 trades, win=0.816, avg_ret=4.18%, sharpe=9.36
+2026-06-09 17:01:58,399   ML_50     : 699684 trades, win=0.846, avg_ret=5.36%, sharpe=11.27
+2026-06-09 17:01:58,399   ML_60     : 559747 trades, win=0.850, avg_ret=5.70%, sharpe=11.65
+2026-06-09 17:01:58,399   ML_70     : 419811 trades, win=0.861, avg_ret=6.30%, sharpe=12.43
+2026-06-09 17:01:58,399   ML_80     : 279874 trades, win=0.879, avg_ret=7.16%, sharpe=13.51
+2026-06-09 17:01:58,399   ML_85     : 209906 trades, win=0.889, avg_ret=7.78%, sharpe=14.31
+2026-06-09 17:01:58,399   ML_90     : 139937 trades, win=0.903, avg_ret=8.59%, sharpe=15.37
+2026-06-09 17:01:58,399   ML_pos    : 1206938 trades, win=0.816, avg_ret=4.29%, sharpe=9.46
+2026-06-09 17:02:00,827   Saved 1,399,367 predictions for calibration
+2026-06-09 17:02:02,188 
+============================================================
+2026-06-09 17:02:02,188 Window: Train 2000-2022, Validate 2023
+2026-06-09 17:02:02,188 ============================================================
+2026-06-09 17:02:03,344 Purged 100,325 train rows whose holding window crosses into 2023
+2026-06-09 17:02:22,424 Train: 28,781,180 samples (mean ret: 1.296%)
+2026-06-09 17:02:22,425 Val:   1,413,136 samples (mean ret: 1.737%, win rate: 0.6501)
+2026-06-09 17:02:22,425 Training LightGBM...
+2026-06-09 17:04:03,399   LGB best iteration: 92
+2026-06-09 17:04:03,399 Training XGBoost...
+0:	learn: 7.5948808	test: 7.7040140	best: 7.7040140 (0)	total: 940ms	remaining: 31m 19s
+100:	learn: 7.3482135	test: 7.4255129	best: 7.4255129 (100)	total: 1m 17s	remaining: 24m 22s
+200:	learn: 7.2280162	test: 7.3826334	best: 7.3826334 (200)	total: 2m 32s	remaining: 22m 45s
+300:	learn: 7.1462168	test: 7.3532935	best: 7.3490367 (286)	total: 3m 47s	remaining: 21m 22s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 7.349036701
+bestIteration = 286
+
+Shrink model to first 287 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 6.52963
+Early stopping, best iteration is:
+[92]	valid_0's rmse: 6.51502
+[0]	val-rmse:6.76864
+[100]	val-rmse:6.60898
+[200]	val-rmse:6.54781
+[300]	val-rmse:6.50679
+[361]	val-rmse:6.51185
+2026-06-09 17:09:48,498   XGB best iteration: 311
+2026-06-09 17:09:48,508 Training CatBoost...
+2026-06-09 17:16:04,488   CatBoost best iteration: 400
+2026-06-09 17:16:04,488 All 3 models trained in 822.1s
+2026-06-09 17:16:10,093 Val metrics (ensemble): AUC=0.6881, RMSE=6.5133, Acc=0.6747
+2026-06-09 17:16:10,093   LGB only: AUC=0.6778, XGB only: AUC=0.6740, CB only: AUC=0.6671
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:16:10,820 
+Trading performance (2023):
+2026-06-09 17:16:10,820   baseline  : 1413136 trades, win=0.650, avg_ret=1.74%, sharpe=4.08
+2026-06-09 17:16:10,820   ML_50     : 706569 trades, win=0.777, avg_ret=3.46%, sharpe=7.81
+2026-06-09 17:16:10,820   ML_60     : 565255 trades, win=0.807, avg_ret=3.97%, sharpe=8.92
+2026-06-09 17:16:10,820   ML_70     : 423941 trades, win=0.829, avg_ret=4.50%, sharpe=9.92
+2026-06-09 17:16:10,820   ML_80     : 282628 trades, win=0.849, avg_ret=5.21%, sharpe=11.04
+2026-06-09 17:16:10,820   ML_85     : 211971 trades, win=0.858, avg_ret=5.68%, sharpe=11.56
+2026-06-09 17:16:10,820   ML_90     : 141315 trades, win=0.865, avg_ret=6.21%, sharpe=11.99
+2026-06-09 17:16:10,820   ML_pos    : 1243155 trades, win=0.685, avg_ret=2.13%, sharpe=4.97
+2026-06-09 17:16:13,103   Saved 1,413,136 predictions for calibration
+2026-06-09 17:16:14,224 
+============================================================
+2026-06-09 17:16:14,224 Window: Train 2000-2023, Validate 2024
+2026-06-09 17:16:14,224 ============================================================
+2026-06-09 17:16:15,469 Purged 95,427 train rows whose holding window crosses into 2024
+2026-06-09 17:16:38,577 Train: 30,199,214 samples (mean ret: 1.328%)
+2026-06-09 17:16:38,578 Val:   1,415,553 samples (mean ret: 1.798%, win rate: 0.6588)
+2026-06-09 17:16:38,579 Training LightGBM...
+2026-06-09 17:17:42,170   LGB best iteration: 6
+2026-06-09 17:17:42,170 Training XGBoost...
+0:	learn: 7.6029849	test: 6.7671432	best: 6.7671432 (0)	total: 1s	remaining: 33m 25s
+100:	learn: 7.3567066	test: 6.6723197	best: 6.6704608 (96)	total: 1m 22s	remaining: 25m 46s
+200:	learn: 7.2350797	test: 6.6367070	best: 6.6326980 (189)	total: 2m 41s	remaining: 24m 8s
+300:	learn: 7.1501672	test: 6.6071025	best: 6.6071025 (300)	total: 4m	remaining: 22m 39s
+400:	learn: 7.0831743	test: 6.5820774	best: 6.5820774 (400)	total: 5m 19s	remaining: 21m 14s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.582077398
+bestIteration = 400
+
+Shrink model to first 401 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[6]	valid_0's rmse: 6.43548
+[0]	val-rmse:6.44657
+[100]	val-rmse:6.38524
+[200]	val-rmse:6.34512
+[236]	val-rmse:6.36892
+2026-06-09 17:22:07,407   XGB best iteration: 186
+2026-06-09 17:22:07,426 Training CatBoost...
+2026-06-09 17:26:26,343   CatBoost best iteration: 238
+2026-06-09 17:26:26,343 All 3 models trained in 587.8s
+2026-06-09 17:26:30,565 Val metrics (ensemble): AUC=0.6260, RMSE=6.3072, Acc=0.6387
+2026-06-09 17:26:30,565   LGB only: AUC=0.5587, XGB only: AUC=0.6266, CB only: AUC=0.6205
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:26:31,133 
+Trading performance (2024):
+2026-06-09 17:26:31,134   baseline  : 1415553 trades, win=0.659, avg_ret=1.80%, sharpe=4.44
+2026-06-09 17:26:31,134   ML_50     : 707777 trades, win=0.764, avg_ret=3.04%, sharpe=7.44
+2026-06-09 17:26:31,134   ML_60     : 566232 trades, win=0.774, avg_ret=3.34%, sharpe=7.81
+2026-06-09 17:26:31,134   ML_70     : 424666 trades, win=0.775, avg_ret=3.61%, sharpe=7.96
+2026-06-09 17:26:31,134   ML_80     : 283111 trades, win=0.778, avg_ret=4.09%, sharpe=8.30
+2026-06-09 17:26:31,134   ML_85     : 212333 trades, win=0.780, avg_ret=4.43%, sharpe=8.45
+2026-06-09 17:26:31,134   ML_90     : 141556 trades, win=0.786, avg_ret=5.05%, sharpe=8.86
+2026-06-09 17:26:31,134   ML_pos    : 1185020 trades, win=0.678, avg_ret=1.99%, sharpe=4.89
+2026-06-09 17:26:33,538   Saved 1,415,553 predictions for calibration
+2026-06-09 17:26:34,762 
+============================================================
+2026-06-09 17:26:34,762 Window: Train 2000-2024, Validate 2025
+2026-06-09 17:26:34,762 ============================================================
+2026-06-09 17:26:35,964 Purged 105,071 train rows whose holding window crosses into 2025
+2026-06-09 17:27:06,723 Train: 31,605,123 samples (mean ret: 1.348%)
+2026-06-09 17:27:06,724 Val:   1,393,159 samples (mean ret: 1.069%, win rate: 0.6146)
+2026-06-09 17:27:06,725 Training LightGBM...
+2026-06-09 17:31:02,267   LGB best iteration: 245
+2026-06-09 17:31:02,267 Training XGBoost...
+0:	learn: 7.5692809	test: 6.4481733	best: 6.4481733 (0)	total: 951ms	remaining: 31m 41s
+100:	learn: 7.3260114	test: 6.3968956	best: 6.3968956 (100)	total: 1m 26s	remaining: 26m 59s
+200:	learn: 7.2099981	test: 6.3324481	best: 6.3322572 (199)	total: 2m 50s	remaining: 25m 29s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.305143421
+bestIteration = 238
+
+Shrink model to first 239 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 7.08646
+[200]	valid_0's rmse: 7.06073
+Early stopping, best iteration is:
+[245]	valid_0's rmse: 7.05159
+[0]	val-rmse:7.29201
+[100]	val-rmse:7.18010
+[200]	val-rmse:7.15590
+[300]	val-rmse:7.11326
+[400]	val-rmse:7.09336
+[487]	val-rmse:7.09235
+2026-06-09 17:39:12,694   XGB best iteration: 437
+2026-06-09 17:39:12,719 Training CatBoost...
+2026-06-09 17:43:39,910   CatBoost best iteration: 232
+2026-06-09 17:43:39,911 All 3 models trained in 993.2s
+2026-06-09 17:43:46,848 Val metrics (ensemble): AUC=0.6320, RMSE=7.0846, Acc=0.6396
+2026-06-09 17:43:46,848   LGB only: AUC=0.6286, XGB only: AUC=0.6316, CB only: AUC=0.6125
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:43:47,384 
+Trading performance (2025):
+2026-06-09 17:43:47,385   baseline  : 1393159 trades, win=0.615, avg_ret=1.07%, sharpe=2.33
+2026-06-09 17:43:47,385   ML_50     : 696580 trades, win=0.697, avg_ret=2.28%, sharpe=4.74
+2026-06-09 17:43:47,385   ML_60     : 557264 trades, win=0.721, avg_ret=2.68%, sharpe=5.45
+2026-06-09 17:43:47,385   ML_70     : 417948 trades, win=0.747, avg_ret=3.20%, sharpe=6.33
+2026-06-09 17:43:47,385   ML_80     : 278632 trades, win=0.775, avg_ret=3.91%, sharpe=7.41
+2026-06-09 17:43:47,385   ML_85     : 208974 trades, win=0.790, avg_ret=4.41%, sharpe=8.04
+2026-06-09 17:43:47,385   ML_90     : 139316 trades, win=0.802, avg_ret=5.07%, sharpe=8.75
+2026-06-09 17:43:47,385   ML_pos    : 1240497 trades, win=0.643, avg_ret=1.43%, sharpe=3.17
+2026-06-09 17:43:49,751   Saved 1,393,159 predictions for calibration
+2026-06-09 17:44:00,881 
+Saved 11,004,843 walk-forward predictions to C:/seasonals/ml_scorer/results\wf_predictions_sr_ab_leaky.parquet
+2026-06-09 17:44:00,881   Columns: ['val_year', 'predicted', 'pred_lgb', 'pred_xgb', 'pred_cb', 'actual_return', 'hit_target', 'date', 'symbol', 'daysOut', 'direction']
+2026-06-09 17:44:00,918   Val years: [np.int64(2018), np.int64(2019), np.int64(2020), np.int64(2021), np.int64(2022), np.int64(2023), np.int64(2024), np.int64(2025)]
+2026-06-09 17:44:01,158 
+============================================================
+2026-06-09 17:44:01,159 Window: Train 2000-2017, Validate 2018
+2026-06-09 17:44:01,159 ============================================================
+2026-06-09 17:44:02,378 Purged 95,380 train rows whose holding window crosses into 2018
+2026-06-09 17:44:45,008 Train: 22,003,130 samples (mean ret: 1.031%)
+2026-06-09 17:44:45,010 Val:   1,398,325 samples (mean ret: 1.876%, win rate: 0.7171)
+2026-06-09 17:44:45,010 Training LightGBM...
+2026-06-09 17:45:11,941   LGB best iteration: 1
+2026-06-09 17:45:11,941 Training XGBoost...
+0:	learn: 7.5218847	test: 7.2909759	best: 7.2909759 (0)	total: 1.13s	remaining: 37m 48s
+100:	learn: 7.2840299	test: 7.1883348	best: 7.1883348 (100)	total: 1m 30s	remaining: 28m 28s
+200:	learn: 7.1684145	test: 7.1599014	best: 7.1591922 (197)	total: 3m	remaining: 26m 55s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 7.154567527
+bestIteration = 232
+
+Shrink model to first 233 iterations.
+
+#################### ARM: honest (52 features) ####################
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[1]	valid_0's rmse: 6.1363
+[0]	val-rmse:6.12179
+[61]	val-rmse:6.12958
+2026-06-09 17:46:07,741   XGB best iteration: 11
+2026-06-09 17:46:07,741 Training CatBoost...
+2026-06-09 17:47:38,284   CatBoost best iteration: 99
+2026-06-09 17:47:38,285 All 3 models trained in 173.3s
+2026-06-09 17:47:40,975 Val metrics (ensemble): AUC=0.5097, RMSE=6.1070, Acc=0.7172
+2026-06-09 17:47:40,976   LGB only: AUC=0.4744, XGB only: AUC=0.4844, CB only: AUC=0.5154
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:47:41,317 
+Trading performance (2018):
+2026-06-09 17:47:41,317   baseline  : 1398325 trades, win=0.717, avg_ret=1.88%, sharpe=4.91
+2026-06-09 17:47:41,317   ML_50     : 697638 trades, win=0.702, avg_ret=1.55%, sharpe=3.94
+2026-06-09 17:47:41,317   ML_60     : 558581 trades, win=0.723, avg_ret=1.97%, sharpe=5.18
+2026-06-09 17:47:41,317   ML_70     : 419491 trades, win=0.722, avg_ret=1.96%, sharpe=4.96
+2026-06-09 17:47:41,317   ML_80     : 279297 trades, win=0.756, avg_ret=2.64%, sharpe=6.54
+2026-06-09 17:47:41,317   ML_85     : 209496 trades, win=0.773, avg_ret=3.13%, sharpe=7.46
+2026-06-09 17:47:41,317   ML_90     : 141061 trades, win=0.789, avg_ret=3.59%, sharpe=8.47
+2026-06-09 17:47:41,317   ML_pos    : 1397898 trades, win=0.717, avg_ret=1.88%, sharpe=4.92
+2026-06-09 17:47:41,475   Saved 1,398,325 predictions for calibration
+2026-06-09 17:47:41,719 
+============================================================
+2026-06-09 17:47:41,719 Window: Train 2000-2018, Validate 2019
+2026-06-09 17:47:41,719 ============================================================
+2026-06-09 17:47:42,841 Purged 92,283 train rows whose holding window crosses into 2019
+2026-06-09 17:47:51,776 Train: 23,404,552 samples (mean ret: 1.076%)
+2026-06-09 17:47:51,777 Val:   1,417,598 samples (mean ret: 1.267%, win rate: 0.6417)
+2026-06-09 17:47:51,777 Training LightGBM...
+2026-06-09 17:48:23,507   LGB best iteration: 9
+2026-06-09 17:48:23,507 Training XGBoost...
+0:	learn: 7.6730830	test: 6.1205799	best: 6.1205799 (0)	total: 636ms	remaining: 21m 12s
+100:	learn: 7.4260990	test: 6.0888320	best: 6.0882697 (99)	total: 57.2s	remaining: 17m 56s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.088269706
+bestIteration = 99
+
+Shrink model to first 100 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[9]	valid_0's rmse: 6.14722
+[0]	val-rmse:6.17214
+[100]	val-rmse:6.13189
+[132]	val-rmse:6.14451
+2026-06-09 17:50:10,220   XGB best iteration: 82
+2026-06-09 17:50:10,220 Training CatBoost...
+2026-06-09 17:51:59,144   CatBoost best iteration: 120
+2026-06-09 17:51:59,144 All 3 models trained in 247.4s
+2026-06-09 17:52:02,248 Val metrics (ensemble): AUC=0.6289, RMSE=6.1386, Acc=0.6423
+2026-06-09 17:52:02,248   LGB only: AUC=0.6063, XGB only: AUC=0.5916, CB only: AUC=0.6231
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:52:02,610 
+Trading performance (2019):
+2026-06-09 17:52:02,610   baseline  : 1417598 trades, win=0.642, avg_ret=1.27%, sharpe=3.26
+2026-06-09 17:52:02,610   ML_50     : 708802 trades, win=0.735, avg_ret=2.40%, sharpe=6.42
+2026-06-09 17:52:02,610   ML_60     : 567451 trades, win=0.743, avg_ret=2.55%, sharpe=6.64
+2026-06-09 17:52:02,610   ML_70     : 425453 trades, win=0.746, avg_ret=2.59%, sharpe=6.50
+2026-06-09 17:52:02,610   ML_80     : 284793 trades, win=0.740, avg_ret=2.68%, sharpe=6.20
+2026-06-09 17:52:02,610   ML_85     : 212062 trades, win=0.754, avg_ret=3.05%, sharpe=6.67
+2026-06-09 17:52:02,610   ML_90     : 141833 trades, win=0.757, avg_ret=3.35%, sharpe=6.66
+2026-06-09 17:52:02,610   ML_pos    : 1415985 trades, win=0.642, avg_ret=1.28%, sharpe=3.31
+2026-06-09 17:52:02,774   Saved 1,417,598 predictions for calibration
+2026-06-09 17:52:03,036 
+============================================================
+2026-06-09 17:52:03,036 Window: Train 2000-2019, Validate 2020
+2026-06-09 17:52:03,036 ============================================================
+2026-06-09 17:52:04,174 Purged 105,071 train rows whose holding window crosses into 2020
+2026-06-09 17:52:13,278 Train: 24,809,362 samples (mean ret: 1.094%)
+2026-06-09 17:52:13,279 Val:   1,153,877 samples (mean ret: 1.400%, win rate: 0.6240)
+2026-06-09 17:52:13,279 Training LightGBM...
+2026-06-09 17:53:45,059   LGB best iteration: 169
+2026-06-09 17:53:45,059 Training XGBoost...
+0:	learn: 7.5826213	test: 6.1753142	best: 6.1753142 (0)	total: 686ms	remaining: 22m 51s
+100:	learn: 7.3552940	test: 6.1393048	best: 6.1386990 (98)	total: 1m	remaining: 18m 56s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.138304376
+bestIteration = 120
+
+Shrink model to first 121 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 10.1162
+[200]	valid_0's rmse: 10.0953
+Early stopping, best iteration is:
+[169]	valid_0's rmse: 10.0933
+[0]	val-rmse:10.43566
+[100]	val-rmse:10.17077
+[200]	val-rmse:10.16245
+[225]	val-rmse:10.16081
+2026-06-09 17:56:32,539   XGB best iteration: 175
+2026-06-09 17:56:32,539 Training CatBoost...
+2026-06-09 17:59:07,897   CatBoost best iteration: 187
+2026-06-09 17:59:07,898 All 3 models trained in 414.6s
+2026-06-09 17:59:11,623 Val metrics (ensemble): AUC=0.6206, RMSE=10.1788, Acc=0.6160
+2026-06-09 17:59:11,623   LGB only: AUC=0.6284, XGB only: AUC=0.6119, CB only: AUC=0.5773
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 17:59:11,924 
+Trading performance (2020):
+2026-06-09 17:59:11,924   baseline  : 1153877 trades, win=0.624, avg_ret=1.40%, sharpe=2.13
+2026-06-09 17:59:11,924   ML_50     : 576939 trades, win=0.711, avg_ret=3.71%, sharpe=6.46
+2026-06-09 17:59:11,924   ML_60     : 461551 trades, win=0.731, avg_ret=4.45%, sharpe=7.87
+2026-06-09 17:59:11,924   ML_70     : 346164 trades, win=0.750, avg_ret=5.14%, sharpe=8.73
+2026-06-09 17:59:11,924   ML_80     : 230775 trades, win=0.769, avg_ret=5.94%, sharpe=9.41
+2026-06-09 17:59:11,924   ML_85     : 173082 trades, win=0.773, avg_ret=6.36%, sharpe=9.58
+2026-06-09 17:59:11,924   ML_90     : 115388 trades, win=0.767, avg_ret=6.91%, sharpe=9.52
+2026-06-09 17:59:11,924   ML_pos    : 888625 trades, win=0.656, avg_ret=1.90%, sharpe=2.77
+2026-06-09 17:59:12,117   Saved 1,153,877 predictions for calibration
+2026-06-09 17:59:12,390 
+============================================================
+2026-06-09 17:59:12,391 Window: Train 2000-2020, Validate 2021
+2026-06-09 17:59:12,391 ============================================================
+2026-06-09 17:59:13,519 Purged 105,107 train rows whose holding window crosses into 2021
+2026-06-09 17:59:24,091 Train: 25,963,203 samples (mean ret: 1.102%)
+2026-06-09 17:59:24,093 Val:   1,413,828 samples (mean ret: 2.083%, win rate: 0.6890)
+2026-06-09 17:59:24,093 Training LightGBM...
+2026-06-09 18:00:21,485   LGB best iteration: 61
+2026-06-09 18:00:21,485 Training XGBoost...
+0:	learn: 7.5180495	test: 10.4475170	best: 10.4475170 (0)	total: 747ms	remaining: 24m 52s
+100:	learn: 7.2967214	test: 10.3656341	best: 10.3585720 (71)	total: 1m 3s	remaining: 19m 56s
+200:	learn: 7.1918360	test: 10.3556068	best: 10.3537732 (187)	total: 2m 4s	remaining: 18m 33s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 10.35377324
+bestIteration = 187
+
+Shrink model to first 188 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 6.19642
+Early stopping, best iteration is:
+[61]	valid_0's rmse: 6.19287
+[0]	val-rmse:6.26306
+[100]	val-rmse:6.23679
+[165]	val-rmse:6.23555
+2026-06-09 18:02:39,845   XGB best iteration: 115
+2026-06-09 18:02:39,845 Training CatBoost...
+2026-06-09 18:08:30,339   CatBoost best iteration: 470
+2026-06-09 18:08:30,339 All 3 models trained in 546.2s
+2026-06-09 18:08:33,883 Val metrics (ensemble): AUC=0.5849, RMSE=6.1839, Acc=0.6392
+2026-06-09 18:08:33,883   LGB only: AUC=0.5781, XGB only: AUC=0.5789, CB only: AUC=0.5832
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 18:08:34,252 
+Trading performance (2021):
+2026-06-09 18:08:34,253   baseline  : 1413828 trades, win=0.689, avg_ret=2.08%, sharpe=5.34
+2026-06-09 18:08:34,253   ML_50     : 706915 trades, win=0.737, avg_ret=3.05%, sharpe=7.37
+2026-06-09 18:08:34,253   ML_60     : 565531 trades, win=0.740, avg_ret=3.24%, sharpe=7.52
+2026-06-09 18:08:34,253   ML_70     : 424149 trades, win=0.744, avg_ret=3.47%, sharpe=7.76
+2026-06-09 18:08:34,253   ML_80     : 282766 trades, win=0.756, avg_ret=3.87%, sharpe=8.33
+2026-06-09 18:08:34,253   ML_85     : 212076 trades, win=0.769, avg_ret=4.22%, sharpe=8.91
+2026-06-09 18:08:34,253   ML_90     : 141380 trades, win=0.791, avg_ret=4.75%, sharpe=9.81
+2026-06-09 18:08:34,253   ML_pos    : 1047372 trades, win=0.722, avg_ret=2.63%, sharpe=6.79
+2026-06-09 18:08:34,468   Saved 1,413,828 predictions for calibration
+2026-06-09 18:08:34,757 
+============================================================
+2026-06-09 18:08:34,757 Window: Train 2000-2021, Validate 2022
+2026-06-09 18:08:34,757 ============================================================
+2026-06-09 18:08:35,891 Purged 105,131 train rows whose holding window crosses into 2022
+2026-06-09 18:08:46,071 Train: 27,377,007 samples (mean ret: 1.160%)
+2026-06-09 18:08:46,073 Val:   1,399,367 samples (mean ret: 4.180%, win rate: 0.8163)
+2026-06-09 18:08:46,073 Training LightGBM...
+2026-06-09 18:09:53,785   LGB best iteration: 75
+2026-06-09 18:09:53,785 Training XGBoost...
+0:	learn: 7.6649816	test: 6.2622954	best: 6.2622954 (0)	total: 700ms	remaining: 23m 19s
+100:	learn: 7.4209851	test: 6.1907863	best: 6.1907863 (100)	total: 1m 7s	remaining: 21m 4s
+200:	learn: 7.3030153	test: 6.1697378	best: 6.1697378 (200)	total: 2m 13s	remaining: 19m 53s
+300:	learn: 7.2272821	test: 6.1578473	best: 6.1577901 (299)	total: 3m 18s	remaining: 18m 39s
+400:	learn: 7.1644845	test: 6.1483536	best: 6.1478962 (388)	total: 4m 23s	remaining: 17m 32s
+500:	learn: 7.1086554	test: 6.1471277	best: 6.1437924 (470)	total: 5m 28s	remaining: 16m 23s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.143792416
+bestIteration = 470
+
+Shrink model to first 471 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 7.70286
+Early stopping, best iteration is:
+[75]	valid_0's rmse: 7.55109
+[0]	val-rmse:7.70329
+[100]	val-rmse:7.67640
+[200]	val-rmse:7.58365
+[249]	val-rmse:7.63317
+2026-06-09 18:13:21,971   XGB best iteration: 199
+2026-06-09 18:13:21,971 Training CatBoost...
+2026-06-09 18:17:16,019   CatBoost best iteration: 131
+2026-06-09 18:17:16,019 All 3 models trained in 509.9s
+2026-06-09 18:17:24,222 Val metrics (ensemble): AUC=0.4987, RMSE=7.5432, Acc=0.7810
+2026-06-09 18:17:24,222   LGB only: AUC=0.4974, XGB only: AUC=0.5054, CB only: AUC=0.4710
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 18:17:25,470 
+Trading performance (2022):
+2026-06-09 18:17:25,486   baseline  : 1399367 trades, win=0.816, avg_ret=4.18%, sharpe=9.36
+2026-06-09 18:17:25,486   ML_50     : 699682 trades, win=0.814, avg_ret=4.68%, sharpe=9.64
+2026-06-09 18:17:25,486   ML_60     : 559747 trades, win=0.830, avg_ret=5.10%, sharpe=10.42
+2026-06-09 18:17:25,486   ML_70     : 419811 trades, win=0.837, avg_ret=5.39%, sharpe=10.84
+2026-06-09 18:17:25,486   ML_80     : 279877 trades, win=0.859, avg_ret=5.88%, sharpe=11.75
+2026-06-09 18:17:25,486   ML_85     : 209916 trades, win=0.873, avg_ret=6.21%, sharpe=12.45
+2026-06-09 18:17:25,486   ML_90     : 139937 trades, win=0.885, avg_ret=6.44%, sharpe=12.81
+2026-06-09 18:17:25,486   ML_pos    : 1336245 trades, win=0.813, avg_ret=4.14%, sharpe=9.24
+2026-06-09 18:17:26,033   Saved 1,399,367 predictions for calibration
+2026-06-09 18:17:27,102 
+============================================================
+2026-06-09 18:17:27,102 Window: Train 2000-2022, Validate 2023
+2026-06-09 18:17:27,103 ============================================================
+2026-06-09 18:17:30,877 Purged 100,325 train rows whose holding window crosses into 2023
+2026-06-09 18:18:08,722 Train: 28,781,180 samples (mean ret: 1.296%)
+2026-06-09 18:18:08,722 Val:   1,413,136 samples (mean ret: 1.737%, win rate: 0.6501)
+2026-06-09 18:18:08,722 Training LightGBM...
+2026-06-09 18:20:18,473   LGB best iteration: 78
+2026-06-09 18:20:18,474 Training XGBoost...
+0:	learn: 7.5947731	test: 7.7037981	best: 7.7037981 (0)	total: 1.16s	remaining: 38m 39s
+100:	learn: 7.3517000	test: 7.5745234	best: 7.5663810 (78)	total: 1m 56s	remaining: 36m 22s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 7.543515017
+bestIteration = 131
+
+Shrink model to first 132 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 6.73656
+Early stopping, best iteration is:
+[78]	valid_0's rmse: 6.72535
+[0]	val-rmse:6.76769
+[55]	val-rmse:6.78300
+2026-06-09 18:22:07,380   XGB best iteration: 5
+2026-06-09 18:22:07,380 Training CatBoost...
+2026-06-09 18:24:10,763   CatBoost best iteration: 26
+2026-06-09 18:24:10,764 All 3 models trained in 362.0s
+2026-06-09 18:24:17,721 Val metrics (ensemble): AUC=0.5221, RMSE=6.7309, Acc=0.6518
+2026-06-09 18:24:17,721   LGB only: AUC=0.5252, XGB only: AUC=0.4813, CB only: AUC=0.5557
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 18:24:19,206 
+Trading performance (2023):
+2026-06-09 18:24:19,206   baseline  : 1413136 trades, win=0.650, avg_ret=1.74%, sharpe=4.08
+2026-06-09 18:24:19,206   ML_50     : 706576 trades, win=0.664, avg_ret=2.15%, sharpe=4.74
+2026-06-09 18:24:19,206   ML_60     : 565253 trades, win=0.669, avg_ret=2.32%, sharpe=4.98
+2026-06-09 18:24:19,206   ML_70     : 423948 trades, win=0.684, avg_ret=2.64%, sharpe=5.42
+2026-06-09 18:24:19,206   ML_80     : 282623 trades, win=0.693, avg_ret=2.98%, sharpe=5.75
+2026-06-09 18:24:19,206   ML_85     : 211971 trades, win=0.697, avg_ret=3.16%, sharpe=5.87
+2026-06-09 18:24:19,206   ML_90     : 141323 trades, win=0.708, avg_ret=3.60%, sharpe=6.34
+2026-06-09 18:24:19,206   ML_pos    : 1406242 trades, win=0.652, avg_ret=1.76%, sharpe=4.14
+2026-06-09 18:24:19,993   Saved 1,413,136 predictions for calibration
+2026-06-09 18:24:21,205 
+============================================================
+2026-06-09 18:24:21,205 Window: Train 2000-2023, Validate 2024
+2026-06-09 18:24:21,205 ============================================================
+2026-06-09 18:24:25,630 Purged 95,427 train rows whose holding window crosses into 2024
+2026-06-09 18:25:03,655 Train: 30,199,214 samples (mean ret: 1.328%)
+2026-06-09 18:25:03,658 Val:   1,415,553 samples (mean ret: 1.798%, win rate: 0.6588)
+2026-06-09 18:25:03,658 Training LightGBM...
+2026-06-09 18:26:13,787   LGB best iteration: 1
+2026-06-09 18:26:13,787 Training XGBoost...
+0:	learn: 7.6029890	test: 6.7682660	best: 6.7682660 (0)	total: 1.36s	remaining: 45m 26s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.747621416
+bestIteration = 26
+
+Shrink model to first 27 iterations.
+Training until validation scores don't improve for 50 rounds
+Early stopping, best iteration is:
+[1]	valid_0's rmse: 6.45432
+[0]	val-rmse:6.44824
+[64]	val-rmse:6.47104
+2026-06-09 18:28:40,649   XGB best iteration: 14
+2026-06-09 18:28:40,650 Training CatBoost...
+2026-06-09 18:30:12,787   CatBoost best iteration: 0
+2026-06-09 18:30:12,787 All 3 models trained in 309.1s
+2026-06-09 18:30:18,608 Val metrics (ensemble): AUC=0.4743, RMSE=6.4551, Acc=0.6588
+2026-06-09 18:30:18,608   LGB only: AUC=0.4870, XGB only: AUC=0.4741, CB only: AUC=0.4733
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 18:30:19,550 
+Trading performance (2024):
+2026-06-09 18:30:19,550   baseline  : 1415553 trades, win=0.659, avg_ret=1.80%, sharpe=4.44
+2026-06-09 18:30:19,550   ML_50     : 705882 trades, win=0.640, avg_ret=1.70%, sharpe=4.10
+2026-06-09 18:30:19,550   ML_60     : 566153 trades, win=0.635, avg_ret=1.69%, sharpe=4.01
+2026-06-09 18:30:19,550   ML_70     : 423100 trades, win=0.632, avg_ret=1.48%, sharpe=3.63
+2026-06-09 18:30:19,550   ML_80     : 281759 trades, win=0.622, avg_ret=1.16%, sharpe=2.90
+2026-06-09 18:30:19,550   ML_85     : 213162 trades, win=0.624, avg_ret=1.20%, sharpe=2.93
+2026-06-09 18:30:19,550   ML_90     : 147850 trades, win=0.649, avg_ret=1.66%, sharpe=3.94
+2026-06-09 18:30:19,550   ML_pos    : 1415553 trades, win=0.659, avg_ret=1.80%, sharpe=4.44
+2026-06-09 18:30:19,863   Saved 1,415,553 predictions for calibration
+2026-06-09 18:30:21,065 
+============================================================
+2026-06-09 18:30:21,065 Window: Train 2000-2024, Validate 2025
+2026-06-09 18:30:21,065 ============================================================
+2026-06-09 18:30:24,705 Purged 105,071 train rows whose holding window crosses into 2025
+2026-06-09 18:30:59,956 Train: 31,605,123 samples (mean ret: 1.348%)
+2026-06-09 18:30:59,956 Val:   1,393,159 samples (mean ret: 1.069%, win rate: 0.6146)
+2026-06-09 18:30:59,956 Training LightGBM...
+2026-06-09 18:33:15,643   LGB best iteration: 71
+2026-06-09 18:33:15,643 Training XGBoost...
+0:	learn: 7.5693748	test: 6.4495749	best: 6.4495749 (0)	total: 1.4s	remaining: 46m 37s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 6.449574915
+bestIteration = 0
+
+Shrink model to first 1 iterations.
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's rmse: 7.25149
+Early stopping, best iteration is:
+[71]	valid_0's rmse: 7.24305
+[0]	val-rmse:7.29269
+[100]	val-rmse:7.25423
+[200]	val-rmse:7.23894
+[300]	val-rmse:7.23439
+[358]	val-rmse:7.23477
+2026-06-09 18:41:37,116   XGB best iteration: 308
+2026-06-09 18:41:37,116 Training CatBoost...
+2026-06-09 18:47:20,391   CatBoost best iteration: 187
+2026-06-09 18:47:20,391 All 3 models trained in 980.4s
+2026-06-09 18:47:26,892 Val metrics (ensemble): AUC=0.5524, RMSE=7.2305, Acc=0.6213
+2026-06-09 18:47:26,892   LGB only: AUC=0.5508, XGB only: AUC=0.5489, CB only: AUC=0.5519
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+C:\Users\afshi\AppData\Local\Programs\Python\Python312\Lib\site-packages\numpy\_core\fromnumeric.py:57: RuntimeWarning: overflow encountered in accumulate
+  return bound(*args, **kwds)
+2026-06-09 18:47:27,769 
+Trading performance (2025):
+2026-06-09 18:47:27,769   baseline  : 1393159 trades, win=0.615, avg_ret=1.07%, sharpe=2.33
+2026-06-09 18:47:27,769   ML_50     : 696583 trades, win=0.645, avg_ret=1.71%, sharpe=3.58
+2026-06-09 18:47:27,769   ML_60     : 557263 trades, win=0.649, avg_ret=1.84%, sharpe=3.71
+2026-06-09 18:47:27,769   ML_70     : 417948 trades, win=0.656, avg_ret=2.03%, sharpe=3.89
+2026-06-09 18:47:27,769   ML_80     : 278632 trades, win=0.666, avg_ret=2.34%, sharpe=4.24
+2026-06-09 18:47:27,769   ML_85     : 208975 trades, win=0.677, avg_ret=2.62%, sharpe=4.58
+2026-06-09 18:47:27,769   ML_90     : 139316 trades, win=0.696, avg_ret=3.17%, sharpe=5.23
+2026-06-09 18:47:27,769   ML_pos    : 1333684 trades, win=0.623, avg_ret=1.17%, sharpe=2.57
+2026-06-09 18:47:28,585   Saved 1,393,159 predictions for calibration
+2026-06-09 18:47:38,159 
+Saved 11,004,843 walk-forward predictions to C:/seasonals/ml_scorer/results\wf_predictions_sr_ab_honest.parquet
+2026-06-09 18:47:38,159   Columns: ['val_year', 'predicted', 'pred_lgb', 'pred_xgb', 'pred_cb', 'actual_return', 'hit_target', 'date', 'symbol', 'daysOut', 'direction']
+2026-06-09 18:47:38,282   Val years: [np.int64(2018), np.int64(2019), np.int64(2020), np.int64(2021), np.int64(2022), np.int64(2023), np.int64(2024), np.int64(2025)]
+0:	learn: 7.5216682	test: 7.2921162	best: 7.2921162 (0)	total: 1.44s	remaining: 47m 55s
+100:	learn: 7.3033511	test: 7.2473407	best: 7.2473407 (100)	total: 2m 12s	remaining: 41m 30s
+200:	learn: 7.2062885	test: 7.2415527	best: 7.2409186 (187)	total: 4m 25s	remaining: 39m 34s
+Stopped by overfitting detector  (50 iterations wait)
+
+bestTest = 7.24091855
+bestIteration = 187
+
+Shrink model to first 188 iterations.
+
+Saved C:\seasonals\ml_scorer\results\experiments\honest_ab_10_30.json
+{'val_year': 2018, 'auc_delta': -0.1183, 'ml90_wr_delta_pp': np.float64(-1.96)}
+{'val_year': 2019, 'auc_delta': -0.0237, 'ml90_wr_delta_pp': np.float64(-8.76)}
+{'val_year': 2020, 'auc_delta': -0.0381, 'ml90_wr_delta_pp': np.float64(-3.88)}
+{'val_year': 2021, 'auc_delta': -0.0311, 'ml90_wr_delta_pp': np.float64(-4.77)}
+{'val_year': 2022, 'auc_delta': -0.0616, 'ml90_wr_delta_pp': np.float64(-1.78)}
+{'val_year': 2023, 'auc_delta': -0.166, 'ml90_wr_delta_pp': np.float64(-15.74)}
+{'val_year': 2024, 'auc_delta': -0.1517, 'ml90_wr_delta_pp': np.float64(-13.71)}
+{'val_year': 2025, 'auc_delta': -0.0796, 'ml90_wr_delta_pp': np.float64(-10.65)}

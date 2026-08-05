@@ -1,0 +1,13 @@
+[Parallel(n_jobs=24)]: Using backend LokyBackend with 24 concurrent workers.
+[Parallel(n_jobs=24)]: Done  24 tasks      | elapsed:   13.3s
+[Parallel(n_jobs=24)]: Done 114 tasks      | elapsed:   51.4s
+[Parallel(n_jobs=24)]: Done 240 tasks      | elapsed:  1.8min
+[Parallel(n_jobs=24)]: Done 402 tasks      | elapsed:  3.1min
+[Parallel(n_jobs=24)]: Done 475 out of 475 | elapsed:  3.6min finished
+Loading C:\seasonals\ml_scorer\features\training_data_10_30.parquet ...
+34,758,772 rows, 475 symbols
+2,034,100 unique (symbol, month-day, daysOut) patterns across 475 symbols
+PIT stats: 98,730,488 pattern-direction-years in 225s
+PIT coverage: 99.75% of training rows
+Saved C:\seasonals\ml_scorer\features\training_data_10_30_pit.parquet (2.38 GB)
+corr(pit_deepest, pat_deepest_pass) = 0.167 (n=34,670,375)

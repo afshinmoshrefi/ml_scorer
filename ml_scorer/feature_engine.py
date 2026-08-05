@@ -1737,6 +1737,10 @@ class FeatureEngine:
             # V2 Market Regime
             'mkt_vix_regime_bucket', 'mkt_breadth_momentum',
             'mkt_fed_rate_level', 'mkt_fed_rate_direction',
+            # V3 commodity / FX regime (3) -- were missing from this list while
+            # present in FEATURE_COLS and computed above; anything validating
+            # against get_feature_names() undercounted the true feature set.
+            'mkt_dxy_roc_20', 'mkt_cl_roc_20', 'mkt_gc_roc_20',
             # SPX Seasonal (4)
             'mkt_spx_seasonal_wr', 'mkt_spx_seasonal_ret',
             'mkt_spx_seasonal_regime', 'mkt_spx_dir_alignment',
