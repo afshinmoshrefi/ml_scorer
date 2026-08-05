@@ -1,0 +1,115 @@
+ML Pattern Scorer -- Deployment Guide
+======================================
+
+Server: prodkeyprovider (104.238.214.253)
+Location: /home/flask/ml_scorer/
+Service: ml_scorer (systemd)
+Port: 7675 (nginx reverse proxy -> unix socket)
+
+
+FILES
+-----
+app.py               Flask API (POST /score, GET /health, GET /tiers)
+config.py            All configuration (paths, models, features, tiers)
+feature_engine.py    Computes 59 features per opportunity
+scorer.py            Model ensemble (LightGBM + XGBoost + CatBoost)
+opp_to_parquet.py    Converts opportunity files to fast parquet format
+warmup_cache.py      Pre-loads all 503 S&P 500 symbols into memory
+nightly.sh           Runs all nightly maintenance (see below)
+models/              18 model files (3 algos x 2 targets x 3 tiers)
+calibration/         6 calibration JSON files (SR + MFE x 3 tiers)
+requirements.txt     Python dependencies
+
+
+NIGHTLY CRON
+------------
+One cron job runs everything at 1:00 AM ET every night:
+
+    0 1 * * * root /home/flask/ml_scorer/nightly.sh
+
+What nightly.sh does (4 steps):
+
+    1. Generate parquets
+       Reads opportunity files and creates ml_cache parquets for the week.
+       These parquets let the scorer load pattern data in <1 second
+       instead of reading 116 gzip files per symbol (which takes 60+ seconds).
+       Output: /home/flask/data/sp500/ml_cache_YYYY-MM-DD.parquet
+       Log: opp_to_parquet.log
+
+    2. Restart the scorer service
+       Clears old in-memory caches so the fresh parquets are picked up.
+
+    3. Wait for the service to be ready
+       Checks once per second (up to 30 seconds) for the Unix socket
+       to appear. The service usually starts in 2-3 seconds.
+
+    4. Warm the cache
+       Scores every S&P 500 symbol once to load all data into memory.
+       Takes about 4 minutes. After this, every request returns in <50ms.
+       Log: warmup_cache.log
+
+By 1:10 AM, everything is cached and ready for market open.
+
+
+HOW TO DEPLOY UPDATES
+---------------------
+From the Windows dev machine:
+
+    scp -P 4369 ml_scorer/<file> root@104.238.214.253:/home/flask/ml_scorer/<file>
+    ssh -p 4369 root@104.238.214.253 "systemctl restart ml_scorer"
+
+To deploy all files at once:
+
+    scp -P 4369 ml_scorer/*.py root@104.238.214.253:/home/flask/ml_scorer/
+    scp -P 4369 ml_scorer/nightly.sh root@104.238.214.253:/home/flask/ml_scorer/
+    ssh -p 4369 root@104.238.214.253 "chmod +x /home/flask/ml_scorer/nightly.sh"
+    ssh -p 4369 root@104.238.214.253 "systemctl restart ml_scorer"
+
+To deploy models/calibration after retraining:
+
+    scp -P 4369 ml_scorer/models/* root@104.238.214.253:/home/flask/ml_scorer/models/
+    scp -P 4369 ml_scorer/calibration/* root@104.238.214.253:/home/flask/ml_scorer/calibration/
+    ssh -p 4369 root@104.238.214.253 "systemctl restart ml_scorer"
+
+
+SERVICE MANAGEMENT
+------------------
+    systemctl status ml_scorer       Check if running
+    systemctl restart ml_scorer      Restart
+    systemctl stop ml_scorer         Stop
+    journalctl -u ml_scorer -n 50    View recent logs
+
+
+ENVIRONMENT
+-----------
+The only required environment variable (set in the systemd service file):
+
+    ML_SCORER_DATA_DIR=/home/flask/data
+
+This is where price CSVs, opportunity files, and ml_cache parquets live.
+The systemd service file is at /etc/systemd/system/ml_scorer.service.
+
+
+NGINX
+-----
+Config: /etc/nginx/sites-available/ml_scorer
+Port 7675, reverse proxy to Unix socket, IP whitelisted.
+The warmup script bypasses nginx by using the Unix socket directly.
+
+
+TROUBLESHOOTING
+---------------
+Scorer is slow (>2s per symbol):
+    - Check if ml_cache parquets exist: ls /home/flask/data/sp500/ml_cache_*.parquet
+    - If missing, run: cd /home/flask/ml_scorer && ML_SCORER_DATA_DIR=/home/flask/data python3.12 opp_to_parquet.py
+    - Then restart and warm: systemctl restart ml_scorer && sleep 5 && ML_SCORER_DATA_DIR=/home/flask/data python3.12 warmup_cache.py
+
+Scorer returns 502:
+    - Check service: systemctl status ml_scorer
+    - Check logs: journalctl -u ml_scorer -n 50
+    - Restart: systemctl restart ml_scorer
+
+Warmup fails:
+    - Check warmup_cache.log for errors
+    - Make sure the Unix socket exists: ls -la /home/flask/ml_scorer/ml_scorer.sock
+    - Run manually: cd /home/flask/ml_scorer && ML_SCORER_DATA_DIR=/home/flask/data python3.12 warmup_cache.py

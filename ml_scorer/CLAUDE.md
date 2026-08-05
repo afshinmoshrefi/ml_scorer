@@ -18,9 +18,10 @@ Self-contained Flask service that scores TradeWave seasonal stock/ETF pattern op
 ml_scorer/
   opp_scorer.py           # Entry point: python opp_scorer.py
   app.py                  # Flask app: POST /score, GET /health, GET /tiers
-  config.py               # Configuration: paths, tiers, 59 feature columns
+  scorer_config.py        # ML config: tiers, features, models (paths from central config.py)
   feature_engine.py       # Computes all 59 features for a single opportunity
   scorer.py               # ModelEnsemble: loads models, averages predictions, calibrates
+  opp_to_parquet.py       # Nightly cron: builds ML parquet caches from opportunity data
   requirements.txt        # pip install -r requirements.txt
   CLAUDE.md               # This file
   models/                 # 18 model files (3 algos x 2 targets x 3 tiers)
@@ -34,32 +35,14 @@ ml_scorer/
 ### Quick Start
 
 ```bash
-# 1. Copy this entire ml_scorer/ folder to the production machine
-scp -r ml_scorer/ root@production-server:/home/flask/ml_scorer/
-
-# 2. Install dependencies
 cd /home/flask/ml_scorer
 pip install -r requirements.txt
-
-# 3. Set data directory (only required env var)
-export ML_SCORER_DATA_DIR=/home/flask/data
-
-# 4. Run
 python opp_scorer.py
 ```
 
-The service starts on `0.0.0.0:5090` by default. Models and calibration files are bundled in the folder (loaded via relative paths). Only the external data directory needs to be configured.
+The service starts on `0.0.0.0:5090`. ML-specific configuration (tiers, features, models) is in `scorer_config.py`. Path configuration (DATA_DIR, CSV_DIR) is imported from the central `/home/flask/config.py` on Linux servers. On Windows dev, paths fall back to `C:/seasonals/data`. **IMPORTANT: Never create a file named `config.py` in this directory -- it would shadow the central TradeWave config and break deployments.**
 
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ML_SCORER_DATA_DIR` | **Yes** | `C:/seasonals/data` | Base path for all price/opp data |
-| `ML_SCORER_HOST` | No | `0.0.0.0` | Flask bind address |
-| `ML_SCORER_PORT` | No | `5090` | Flask port |
-| `ML_SCORER_EARNINGS_DIR` | No | `{DATA_DIR}/../edgar/earnings` | Earnings date JSONs |
-
-### Production Deployment (systemd example)
+### Production Deployment (systemd)
 
 ```ini
 [Unit]
@@ -70,7 +53,6 @@ After=network.target
 Type=simple
 User=flask
 WorkingDirectory=/home/flask/ml_scorer
-Environment=ML_SCORER_DATA_DIR=/home/flask/data
 ExecStart=/usr/bin/python3 opp_scorer.py
 Restart=always
 RestartSec=5
@@ -86,7 +68,7 @@ For production load, use gunicorn instead of the Flask dev server:
 ```bash
 pip install gunicorn
 cd /home/flask/ml_scorer
-ML_SCORER_DATA_DIR=/home/flask/data gunicorn -w 2 -b 0.0.0.0:5090 app:app
+gunicorn -w 2 -b 0.0.0.0:5090 app:app
 ```
 
 Note: `app:app` refers to the `app` object in `app.py`. Models load once at import time, so each gunicorn worker loads its own copy. 2 workers is recommended (models are small, ~5 MB total).
@@ -94,7 +76,7 @@ Note: `app:app` refers to the `app` object in `app.py`. Models load once at impo
 ### Required Data on the Machine
 
 ```
-{ML_SCORER_DATA_DIR}/
+/home/flask/data/
   csv/US/                    # Stock price CSVs (OHLCV, ~3500 files, back to 1981+)
   csv/ETF/                   # ETF CSVs (SPY, QQQ, sector ETFs, VIX-related, etc.)
   csv/INDX/                  # Index CSVs (VIX, VIX3M, US10Y, US2Y, IRX, ADVN, DECN, SPX)
@@ -102,6 +84,22 @@ Note: `app:app` refers to the `app` object in `app.py`. Models load once at impo
   ETF/opp_by_symbol/         # 157 dirs (for ETF inference)
   sp500_symbols.csv          # S&P 500 ticker list
 ```
+
+### Parquet Cache (for fast batch scoring)
+
+The ML scorer can read pre-built parquet caches instead of scanning hundreds of gzip files per symbol. These are generated nightly by `opp_to_parquet.py`.
+
+```bash
+# Cron: 0 1 * * * cd /home/flask/ml_scorer && python3 opp_to_parquet.py
+python3 opp_to_parquet.py              # auto-detect dates (rest of week + next week on Sat)
+python3 opp_to_parquet.py 2026-03-17   # specific date
+python3 opp_to_parquet.py --dry-run    # preview without writing
+```
+
+Output: `data/<market>/ml_cache_<YYYY-MM-DD>.parquet` (one per market per date).
+Covers 6 markets: DOW 30, NASDAQ 100, S&P 500, RUSSELL 1000, WILSHIRE 5000, ETFs.
+Build time: ~4 min for one day across all 6 markets.
+Self-cleaning: parquets live alongside the opportunity data, so they auto-delete when monthly opp refresh replaces the folder.
 
 ---
 
@@ -179,7 +177,7 @@ Returns list of available tier names.
 
 1. **Feature Engine** (`feature_engine.py`) computes 59 features:
    - Loads symbol's price CSV (searches US/ -> ETF/ -> INDX/ directories)
-   - Loads opportunity files (searches sp500/opp_by_symbol/ -> ETF/opp_by_symbol/)
+   - Loads opportunity data from parquet cache (or falls back to gzip files)
    - Computes pattern features from depth profile (22 features)
    - Computes technical indicators from price data (5 features)
    - Looks up precomputed market regime (VIX, yields, credit, breadth -- 16 features)
@@ -203,7 +201,7 @@ At startup, the scorer validates that every loaded model's feature count matches
 
 ## The 59 Features
 
-Defined in `config.py` as `FEATURE_COLS`. All tiers and both SR/MFE models use the identical feature set.
+Defined in `scorer_config.py` as `FEATURE_COLS`. All tiers and both SR/MFE models use the identical feature set.
 
 **CRITICAL: pat_daysOut MUST always be included.** A pattern is defined by [start_date, ticker, days_out, history_years]. Without pat_daysOut, the model cannot distinguish 10-day from 30-day holds.
 
@@ -278,23 +276,26 @@ No special configuration needed. Just POST the ETF symbol to /score like any sto
 
 ---
 
-## Config Reference (config.py)
+## Config Reference (scorer_config.py)
 
-| Setting | Source | Default | Description |
-|---------|--------|---------|-------------|
-| `DATA_DIR` | `ML_SCORER_DATA_DIR` env | `C:/seasonals/data` | Base path for all external data. Set to `/home/flask/data` on Linux production. |
-| `HOST` | `ML_SCORER_HOST` env | `0.0.0.0` | Flask bind address |
-| `PORT` | `ML_SCORER_PORT` env | `5090` | Flask port |
-| `VIX_CUTOFF` | hardcoded | `35` | Refuse to score when VIX exceeds this |
-| `MAX_DEPTH_CAP` | hardcoded | `35` | Cap for depth_utilization denominator |
-| `SPX_SEASONAL_FORWARD_DAYS` | hardcoded | `15` | Trading days for SPX seasonal return calc |
-| `TIERS` | hardcoded | 3 tiers | Maps tier name to model/calibration file paths |
-| `FEATURE_COLS` | hardcoded | 59 features | Feature list (must match trained models) |
-| `TICKER_SECTOR` | from config_ml.py | 475 stocks | Stock -> GICS sector mapping |
-| `ETF_SECTOR` | from config_ml.py | 157 ETFs | ETF -> category mapping |
-| `SECTOR_ETF` | hardcoded | 11 sectors | GICS sector -> SPDR ETF mapping |
+ML-specific configuration is in `scorer_config.py`. Paths are imported from the central `/home/flask/config.py` on Linux; on Windows dev they fall back to local defaults. No environment variables are used. **Never name any file in this directory `config.py`.**
 
-All derived paths (CSV directories, opportunity directories, etc.) are computed from `DATA_DIR` in config.py. Setting `ML_SCORER_DATA_DIR` is the only configuration needed when moving between machines.
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `DATA_DIR` | from central config | `/home/flask/config.py:ddir` on Linux, `C:/seasonals/data` on Windows fallback |
+| `HOST` | `0.0.0.0` | Flask bind address |
+| `PORT` | `5090` | Flask port |
+| `VIX_CUTOFF` | `35` | Refuse to score when VIX exceeds this |
+| `MAX_DEPTH_CAP` | `35` | Cap for depth_utilization denominator |
+| `SPX_SEASONAL_FORWARD_DAYS` | `15` | Trading days for SPX seasonal return calc |
+| `TIERS` | 3 tiers | Maps tier name to model/calibration file paths |
+| `FEATURE_COLS` | 59 features | Feature list (must match trained models) |
+| `ML_PARQUET_MARKETS` | 6 markets | Markets for daily parquet generation |
+| `TICKER_SECTOR` | from config_ml.py | 475 stocks -> GICS sector mapping |
+| `ETF_SECTOR` | from config_ml.py | 157 ETFs -> category mapping |
+| `SECTOR_ETF` | 11 sectors | GICS sector -> SPDR ETF mapping |
+
+All derived paths (CSV directories, opportunity directories, etc.) are computed from `DATA_DIR`, which comes from the central `/home/flask/config.py` on Linux servers.
 
 ---
 
@@ -308,6 +309,7 @@ catboost
 pandas
 numpy
 scikit-learn
+pyarrow
 ```
 
 Python 3.10+ recommended (tested on 3.12).

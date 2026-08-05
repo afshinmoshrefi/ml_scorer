@@ -21,7 +21,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import app
-from config import HOST, PORT
+from scorer_config import HOST, PORT
 
 if __name__ == '__main__':
     app.run(host=HOST, port=PORT, debug=True)

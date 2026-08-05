@@ -19,13 +19,15 @@ import os
 from flask import Flask, request, jsonify
 
 try:
-    from .config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
+    from .scorer_config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
     from .scorer import ScorerManager
     from .feature_engine import FeatureEngine
+    from .daily_opp_selection import select_daily_opps
 except ImportError:
-    from config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
+    from scorer_config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF
     from scorer import ScorerManager
     from feature_engine import FeatureEngine
+    from daily_opp_selection import select_daily_opps
 
 # Logging
 logging.basicConfig(
@@ -186,6 +188,71 @@ def score():
         'tier': tier_name,
         'elapsed_ms': round(elapsed, 1),
     })
+
+
+@app.route('/select', methods=['POST'])
+def select():
+    """
+    Select top daily opportunities from parquet data + ML scoring.
+
+    Request JSON:
+      {
+        "date": "2026-03-17",
+        "resource_ids": ["2", "11"],
+        "num_picks": 1,
+        "direction": "l",
+        "days_out_min": 10,
+        "days_out_max": 30,
+        "min_avg_return": 5.0,
+        "min_win_prob": 0.80,
+        "exclude_symbols": ["AAPL", "MSFT"]
+      }
+
+    Required: date, resource_ids, num_picks, direction, days_out_min,
+              days_out_max, min_avg_return, min_win_prob
+    Optional: exclude_symbols (default [])
+
+    Response JSON:
+      {
+        "picks": [
+          {
+            "symbol": "XOM", "date": "2026-03-17", "daysOut": 22,
+            "direction": "l", "tier": "10_30",
+            "sharpe_ratio": 1.45, "avg_profit": 6.2,
+            "ml_score": 88.5, "win_prob": 0.83,
+            "pred_return": 3.1, "pred_mfe": 7.8, ...
+          }
+        ],
+        "candidates_after_prefilter": 142,
+        "candidates_scored": 142,
+        "candidates_passing_win_prob": 38,
+        "elapsed_ms": 4200
+      }
+    """
+    data = request.get_json(force=True)
+
+    # Validate required fields
+    required = ['date', 'resource_ids', 'num_picks', 'direction',
+                'days_out_min', 'days_out_max', 'min_avg_return', 'min_win_prob']
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({'error': f'Missing required fields: {missing}'}), 400
+
+    result = select_daily_opps(
+        date=data['date'],
+        resource_ids=data['resource_ids'],
+        num_picks=int(data['num_picks']),
+        direction=data['direction'],
+        days_out_min=int(data['days_out_min']),
+        days_out_max=int(data['days_out_max']),
+        min_avg_return=float(data['min_avg_return']),
+        min_win_prob=float(data['min_win_prob']),
+        exclude_symbols=data.get('exclude_symbols', []),
+        engine=engine,
+        scorer_mgr=scorer_mgr,
+    )
+
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------

@@ -35,19 +35,22 @@ import numpy as np
 import pandas as pd
 
 try:
-    from .config import (
-        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
+    from .scorer_config import (
+        DATA_DIR, US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
-        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
+        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF, ML_PARQUET_MARKETS,
     )
 except ImportError:
-    from config import (
-        US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
+    from scorer_config import (
+        DATA_DIR, US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
-        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
+        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF, ML_PARQUET_MARKETS,
     )
+
+import logging
+log = logging.getLogger('ml_scorer')
 
 # SPX_SEASONAL_CUTOFF_YEAR is not in the package config; define here.
 # Training used 1960-1999 to avoid leakage into 2000+ training data.
@@ -62,7 +65,7 @@ class FeatureEngine:
     def __init__(self):
         # Price data cache: symbol -> DataFrame
         self._price_cache = {}
-        # Opportunity depth profile cache: symbol -> dict
+        # Opportunity depth profile cache: symbol -> dict of combo -> lookup
         self._opp_cache = {}
         # Market data (SPY, VIX, bonds, credit, sector ETFs)
         self._market_cache = {}
@@ -72,6 +75,10 @@ class FeatureEngine:
         self._breadth_cache = None
         # SPX seasonal lookup (lazy-loaded)
         self._spx_seasonal_lookup = None
+        # Parquet cache: loaded lazily per market per date
+        self._parquet_date = None
+        self._parquet_by_symbol = {}
+        self._parquet_loaded_markets = set()
 
     # ------------------------------------------------------------------
     # Data Loading
@@ -167,24 +174,104 @@ class FeatureEngine:
     # Group 1: Pattern-Intrinsic Features (23 V1 + 8 V2)
     # ------------------------------------------------------------------
 
-    def _load_opp_files(self, symbol):
-        """Load all opportunity combo files for a symbol.
+    def _load_parquet_for_date(self, date_str):
+        """Load market parquets for a given date, one market at a time.
 
-        Returns dict of combo -> indexed lookup dict.
-        The lookup is keyed by (date_str, daysOut, LorS) -> row dict for O(1) access.
+        Parquet files are at: DATA_DIR/<market_folder>/ml_cache_<date>.parquet
+        Each contains all symbols for that market with columns:
+            LorS, date, daysOut, sym, sharpe_ratio, avg_profit, median_profit, avg_profit2, combo
+
+        Loads lazily: each market parquet is only read and split when a symbol
+        from that market is first requested. Returns the shared symbol->DataFrame dict.
         """
-        if symbol in self._opp_cache:
-            return self._opp_cache[symbol]
+        if self._parquet_date != date_str:
+            # New date: reset everything
+            self._parquet_date = date_str
+            self._parquet_by_symbol = {}
+            self._parquet_loaded_markets = set()
 
+        return self._parquet_by_symbol
+
+    def _ensure_parquet_market(self, date_str, symbol):
+        """Ensure the parquet for the market containing this symbol is loaded.
+
+        Loads one market at a time (~2-3s each) rather than all 6 at once.
+        If the symbol is found, its DataFrame is in self._parquet_by_symbol.
+        """
+        if symbol in self._parquet_by_symbol:
+            return True
+
+        for rid, (display_name, folder) in ML_PARQUET_MARKETS.items():
+            if folder in self._parquet_loaded_markets:
+                continue
+            path = os.path.join(DATA_DIR, folder, f'ml_cache_{date_str}.parquet')
+            if not os.path.exists(path):
+                self._parquet_loaded_markets.add(folder)
+                continue
+            try:
+                df = pd.read_parquet(path)
+                by_sym = {sym: grp for sym, grp in df.groupby('sym')}
+                self._parquet_by_symbol.update(by_sym)
+                self._parquet_loaded_markets.add(folder)
+                log.info(f'Loaded {display_name} parquet for {date_str}: {len(by_sym)} symbols')
+                if symbol in by_sym:
+                    return True
+            except Exception as e:
+                log.warning(f'Failed to read parquet {path}: {e}')
+                self._parquet_loaded_markets.add(folder)
+
+        return symbol in self._parquet_by_symbol
+
+    def _build_combos_from_df(self, sym_df):
+        """Convert a symbol's parquet DataFrame into the combo lookup structure.
+
+        Returns dict of {combo_name -> {(date, daysOut, LorS) -> {sharpe_ratio, ...}}}
+        Same structure as the old gzip-based _load_opp_files.
+        """
+        combos = {}
+        c_vals = sym_df['combo'].values
+        d_vals = sym_df['date'].values
+        do_vals = sym_df['daysOut'].values.astype(int)
+        dr_vals = sym_df['LorS'].values
+        sr_vals = sym_df['sharpe_ratio'].values
+        ap_vals = sym_df['avg_profit'].values
+        mp_vals = sym_df['median_profit'].values
+        a2_vals = (sym_df['avg_profit2'].values if 'avg_profit2' in sym_df.columns
+                   else ap_vals)
+        for i in range(len(sym_df)):
+            c = c_vals[i]
+            if c not in combos:
+                combos[c] = {}
+            combos[c][(d_vals[i], int(do_vals[i]), dr_vals[i])] = {
+                'sharpe_ratio': float(sr_vals[i]),
+                'avg_profit': float(ap_vals[i]),
+                'median_profit': float(mp_vals[i]),
+                'avg_profit2': float(a2_vals[i]),
+            }
+        return combos
+
+    def _load_opp_files_gzip_fallback(self, symbol, date):
+        """Fallback: targeted gzip scan for 5 dates (target + neighbors).
+
+        Only used when no parquet cache exists. Reads all gzip files but
+        only extracts rows matching the 5 required dates (98.7% reduction).
+        """
+        if isinstance(date, str):
+            date = pd.Timestamp(date)
+
+        # 5 dates needed: target + neighbors at +-7, +-14 days
+        search_dates = set()
+        for shift in [-14, -7, 0, 7, 14]:
+            search_dates.add((date + timedelta(days=shift)).strftime('%Y-%m-%d'))
+
+        # Find opp_by_symbol directory
         opp_dir = os.path.join(OPP_BY_SYMBOL_DIR, symbol)
         if not os.path.isdir(opp_dir):
-            # Try ETF opp directory as fallback
             etf_opp_dir = os.path.join(os.path.dirname(os.path.dirname(OPP_BY_SYMBOL_DIR)),
                                         'ETF', 'opp_by_symbol', symbol)
             if os.path.isdir(etf_opp_dir):
                 opp_dir = etf_opp_dir
             else:
-                self._opp_cache[symbol] = {}
                 return {}
 
         combos = {}
@@ -194,22 +281,71 @@ class FeatureEngine:
             combo_name = fname.replace('.csv.gz', '')
             path = os.path.join(opp_dir, fname)
             try:
-                df = pd.read_csv(path, compression='gzip')
-                # Build indexed lookup: (date, daysOut, LorS) -> row dict
-                lookup = {}
-                for _, row in df.iterrows():
-                    key = (str(row['date'])[:10], int(row['daysOut']), row['LorS'])
-                    lookup[key] = {
-                        'sharpe_ratio': row['sharpe_ratio'],
-                        'avg_profit': row['avg_profit'],
-                        'median_profit': row['median_profit'],
-                        'avg_profit2': row.get('avg_profit2', row['avg_profit']),
-                    }
-                combos[combo_name] = lookup
+                with gzip.open(path, 'rt') as gz:
+                    header = gz.readline().strip().split(',')
+                    date_idx = header.index('date')
+                    days_idx = header.index('daysOut')
+                    dir_idx = header.index('LorS')
+                    sr_idx = header.index('sharpe_ratio')
+                    ap_idx = header.index('avg_profit')
+                    mp_idx = header.index('median_profit')
+                    ap2_idx = header.index('avg_profit2') if 'avg_profit2' in header else ap_idx
+                    lookup = {}
+                    for line in gz:
+                        fields = line.strip().split(',')
+                        d = fields[date_idx][:10]
+                        if d in search_dates:
+                            lookup[(d, int(fields[days_idx]), fields[dir_idx])] = {
+                                'sharpe_ratio': float(fields[sr_idx]),
+                                'avg_profit': float(fields[ap_idx]),
+                                'median_profit': float(fields[mp_idx]),
+                                'avg_profit2': float(fields[ap2_idx]),
+                            }
+                if lookup:
+                    combos[combo_name] = lookup
             except Exception:
                 continue
 
-        self._opp_cache[symbol] = combos
+        return combos
+
+    def _load_opp_files(self, symbol, date=None):
+        """Load opportunity combo data for a symbol.
+
+        Returns dict of combo -> indexed lookup dict.
+        The lookup is keyed by (date_str, daysOut, LorS) -> row dict for O(1) access.
+
+        Data source priority:
+          1. Parquet cache (ml_cache_<date>.parquet) -- instant, pre-built nightly
+          2. Targeted gzip scan (5 dates only) -- slower fallback, no parquet needed
+        """
+        if isinstance(date, pd.Timestamp):
+            date_str = date.strftime('%Y-%m-%d')
+        elif isinstance(date, str):
+            date_str = date[:10]
+        else:
+            date_str = None
+
+        # Cache key includes date because data is date-specific
+        # (parquet contains only 5 dates around the target)
+        cache_key = (symbol, date_str)
+        if cache_key in self._opp_cache:
+            return self._opp_cache[cache_key]
+
+        combos = {}
+
+        # Try parquet cache first
+        if date_str:
+            self._load_parquet_for_date(date_str)
+            self._ensure_parquet_market(date_str, symbol)
+            if symbol in self._parquet_by_symbol:
+                combos = self._build_combos_from_df(self._parquet_by_symbol[symbol])
+
+        # Fallback to targeted gzip scan if no parquet data found
+        if not combos and date is not None:
+            log.info(f'Parquet miss for {symbol} on {date_str}, falling back to gzip scan')
+            combos = self._load_opp_files_gzip_fallback(symbol, date)
+
+        self._opp_cache[cache_key] = combos
         return combos
 
     def _parse_combo(self, combo_name):
@@ -226,9 +362,9 @@ class FeatureEngine:
         Scans all year combos to build depth profile for this unique opportunity.
         """
         features = {}
-        combos = self._load_opp_files(symbol)
         if isinstance(date, str):
             date = pd.Timestamp(date)
+        combos = self._load_opp_files(symbol, date)
 
         dir_char = direction[0].lower()  # 'l' or 's'
         date_str = str(date)[:10]
