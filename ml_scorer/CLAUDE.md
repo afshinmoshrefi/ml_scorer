@@ -156,7 +156,7 @@ Score one or multiple opportunities. `tier` is optional -- auto-detected from `d
 Additive TradeWave duration-comparison endpoint. Legacy `POST /score` remains unchanged.
 This endpoint recalculates the pattern's full V3 all-qualifying-combo profile
 at one exact inclusive calendar window before scoring it. Its context contract is
-`duration-comparison-context-v3`.
+`duration-comparison-context-v4`.
 
 ```json
 {

@@ -85,6 +85,8 @@ _V3_PROFILE_VALIDATION_TOLERANCES = {
     'pat_sharpe_ratio': (0.011, 0.01),
     'pat_avg_profit2': (0.011, 0.05),
 }
+_V3_BEST_COMBO_MODEL_KEYS = ('sharpe_ratio', 'avg_profit2')
+_V3_ROUNDED_SHARPE_TIE_TOLERANCE = 0.011
 
 _PINNED_PRICE_SYMBOLS = frozenset({
     'SPY', 'HYG', 'LQD', 'XLK', 'XLU', 'XLF', 'XLE', 'XLV', 'XLY',
@@ -1225,6 +1227,51 @@ class FeatureEngine:
             )
             if prebuilt_profile is not None else list(_V3_AGGREGATE_PROFILE_KEYS)
         )
+        # A one-hundredth Sharpe rounding difference can change which otherwise
+        # tied combo is selected as "best". That can make the aggregate MFE look
+        # materially different even when the prebuilt winning row itself is
+        # reproduced exactly from current raw prices. Accept only that narrow
+        # ordering case: identical qualifying sets, only best-row model fields
+        # differ, the authoritative best row independently validates, and its
+        # raw-price Sharpe is tied with the dynamic winner at display precision.
+        rounded_best_combo_tie = False
+        prebuilt_best_combo = (
+            prebuilt_aggregate_meta.get('best_combo')
+            if isinstance(prebuilt_aggregate_meta, dict) else None
+        )
+        dynamic_best_combo = (
+            aggregate_meta.get('best_combo')
+            if isinstance(aggregate_meta, dict) else None
+        )
+        if (
+            qualifying_sets_match
+            and prebuilt_best_combo in prebuilt_rows
+            and prebuilt_best_combo in dynamic_rows
+            and dynamic_best_combo in dynamic_rows
+            and prebuilt_best_combo != dynamic_best_combo
+            and model_differences
+            and set(model_differences).issubset({
+                'pat_sharpe_ratio', 'pat_avg_profit2',
+            })
+        ):
+            authoritative_row_differences = self._profile_value_differences(
+                prebuilt_rows[prebuilt_best_combo],
+                dynamic_rows[prebuilt_best_combo],
+                keys=_V3_BEST_COMBO_MODEL_KEYS,
+                tolerances=_V3_PROFILE_VALIDATION_TOLERANCES,
+            )
+            dynamic_winner_sharpe = float(
+                dynamic_rows[dynamic_best_combo]['sharpe_ratio'])
+            authoritative_candidate_sharpe = float(
+                dynamic_rows[prebuilt_best_combo]['sharpe_ratio'])
+            rounded_best_combo_tie = (
+                not authoritative_row_differences
+                and abs(
+                    dynamic_winner_sharpe - authoritative_candidate_sharpe
+                ) <= _V3_ROUNDED_SHARPE_TIE_TOLERANCE
+            )
+        if rounded_best_combo_tie:
+            model_differences = []
         values_match = not model_differences
         if not qualifying_sets_match or prebuilt_profile is None or not values_match:
             raise PatternProfileUnavailable(
@@ -1235,6 +1282,8 @@ class FeatureEngine:
                     'qualifying_sets_match': qualifying_sets_match,
                     'model_values_match': values_match,
                     'mismatched_model_fields': model_differences,
+                    'dynamic_best_combo': dynamic_best_combo,
+                    'prebuilt_best_combo': prebuilt_best_combo,
                 },
             )
         # The dynamic rebuild proves the checkpoint's qualifying combo set. The
@@ -1257,9 +1306,15 @@ class FeatureEngine:
                 'source': source,
                 'prebuilt_validated': prebuilt_validated,
                 'profile_validation': (
-                    'bounded_authoritative' if strict_differences else 'exact'
+                    'rounded_tie_authoritative'
+                    if rounded_best_combo_tie
+                    else 'bounded_authoritative'
+                    if strict_differences
+                    else 'exact'
                 ),
                 'reconciled_model_fields': strict_differences,
+                'dynamic_best_combo': dynamic_best_combo,
+                'prebuilt_best_combo': prebuilt_best_combo,
                 'qualifying_combo_count': len(dynamic_rows),
                 'prebuilt_combo_count': len(prebuilt_rows),
                 'profile_hash': self._profile_hash(served_profile),

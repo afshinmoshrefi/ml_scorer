@@ -522,6 +522,77 @@ class RecalculationUnitTests(unittest.TestCase):
                     '2', 'AAPL', '2026-08-05', 29, 'l')
         self.assertEqual(caught.exception.reason, 'prebuilt_profile_mismatch')
 
+    def test_recalculation_accepts_model_faithful_rounded_best_combo_tie(self):
+        engine = FeatureEngine()
+        price_frame = pd.DataFrame(
+            {'close': [100.0, 101.0]},
+            index=pd.to_datetime(['2000-01-03', '2026-08-04']),
+        )
+        definitions = [
+            {
+                'name': '7_6', 'year1': 7, 'year2': 6, 'is_pe': False,
+                'path': '/opps/7_6.csv.gz', 'mtime_ns': 1, 'ctime_ns': 1,
+                'bytes': 100,
+            },
+            {
+                'name': '6_6', 'year1': 6, 'year2': 6, 'is_pe': False,
+                'path': '/opps/6_6.csv.gz', 'mtime_ns': 1, 'ctime_ns': 1,
+                'bytes': 100,
+            },
+        ]
+        dynamic_rows = [
+            {
+                'sharpe_ratio': 1.10,
+                'avg_profit': 4.0,
+                'median_profit': 4.0,
+                'avg_profit2': 12.0,
+            },
+            {
+                'sharpe_ratio': 1.10,
+                'avg_profit': 3.0,
+                'median_profit': 3.0,
+                'avg_profit2': 10.0,
+            },
+        ]
+        prebuilt_rows = {
+            '7_6': dict(dynamic_rows[0], sharpe_ratio=1.09),
+            '6_6': dict(dynamic_rows[1]),
+        }
+        snapshot = {
+            'rows': {
+                name: {(89, 'l'): row}
+                for name, row in prebuilt_rows.items()
+            },
+            'active_pairs': {(89, 'l')},
+        }
+        with (
+            mock.patch.object(
+                engine, '_prepare_context_target',
+                return_value=(
+                    price_frame, '/prices/PCAR.csv', '/opps/PCAR',
+                    ('/prices/PCAR.csv', 1, 1, 100),
+                ),
+            ),
+            mock.patch.object(engine, '_combo_definitions', return_value=definitions),
+            mock.patch.object(
+                engine, '_compute_historical_observation', return_value={}),
+            mock.patch.object(
+                engine, '_combo_row_from_observations', side_effect=dynamic_rows),
+            mock.patch.object(
+                engine, '_context_opp_snapshot', return_value=snapshot),
+        ):
+            profile, metadata = engine.compute_recalculated_pattern_profile(
+                '2', 'PCAR', '2026-08-05', 89, 'l')
+
+        self.assertEqual(profile['pat_avg_profit2'], 10.0)
+        self.assertEqual(metadata['prebuilt_best_combo'], '6_6')
+        self.assertEqual(metadata['dynamic_best_combo'], '7_6')
+        self.assertEqual(
+            metadata['profile_validation'], 'rounded_tie_authoritative')
+        self.assertEqual(metadata['reconciled_model_fields'], [
+            'pat_avg_profit2',
+        ])
+
     def test_shared_tlt_and_spx_sources_refresh_on_ctime_change(self):
         engine = FeatureEngine()
         generation = {'ctime_ns': 10}
