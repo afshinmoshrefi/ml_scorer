@@ -88,6 +88,28 @@ _V3_PROFILE_VALIDATION_TOLERANCES = {
 _V3_BEST_COMBO_MODEL_KEYS = ('sharpe_ratio', 'avg_profit2')
 _V3_ROUNDED_SHARPE_TIE_TOLERANCE = 0.011
 
+# The legacy scorer deliberately represents an exact horizon that has no
+# qualifying pattern-depth row with missing pattern features.  All three V3
+# model families accept that missing-value representation, and the
+# public /score endpoint has always returned a reading for it.  The context
+# endpoint must preserve the same model contract after it independently proves
+# from raw prices that the qualifying set is genuinely empty.
+_PATTERN_V1_FEATURE_SUFFIXES = (
+    'sharpe_ratio', 'avg_profit', 'median_profit', 'avg_profit2',
+    'mfe_ratio', 'profit_per_day', 'sharpe_per_day',
+    'daysOut', 'daysOut_bucket', 'direction',
+    'data_years', 'deepest_pass', 'depth_utilization',
+    'passes_at_max_depth', 'passes_recent_10', 'recent_vs_deep_sharpe',
+    'num_combos_qualifying',
+    'pe_match', 'pe_deepest', 'pe_utilization',
+    'best_winrate', 'worst_winrate', 'deepest_pass_capped30',
+)
+_PATTERN_V2_FEATURE_SUFFIXES = (
+    'consistency_std', 'concurrent_count',
+    'neighbor_avg_wr', 'sharpness', 'pre_slope', 'post_cliff',
+    'hit_last_year',
+)
+
 _PINNED_PRICE_SYMBOLS = frozenset({
     'SPY', 'HYG', 'LQD', 'XLK', 'XLU', 'XLF', 'XLE', 'XLV', 'XLY',
     'XLC', 'XLI', 'XLP', 'XLRE', 'XLB', 'VIX', 'VIX3M', 'US10Y',
@@ -1064,6 +1086,21 @@ class FeatureEngine:
         }
 
     @staticmethod
+    def _empty_pattern_profile():
+        """Return the V3 missing-profile vector used by the legacy scorer.
+
+        This is not a fabricated weak pattern.  It preserves the existing
+        scorer representation for "no qualifying depth row was found."
+        """
+        return {
+            f'pat_{name}': np.nan
+            for name in (
+                *_PATTERN_V1_FEATURE_SUFFIXES,
+                *_PATTERN_V2_FEATURE_SUFFIXES,
+            )
+        }
+
+    @staticmethod
     def _profile_value_differences(left, right, keys=None, tolerance=1e-10,
                                    tolerances=None):
         keys = tuple(keys) if keys is not None else tuple(left)
@@ -1169,26 +1206,19 @@ class FeatureEngine:
         data_years = len(price_df) / 252.0
         dynamic_profile, aggregate_meta = self._aggregate_pattern_profile(
             dynamic_rows, definitions, data_years, dir_char, int(days_out))
-        if dynamic_profile is None:
-            raise PatternProfileUnavailable(
-                'pattern_profile_unavailable',
-                {
-                    'completed_observations': len(regular_observations),
-                    'completed_pe2_observations': len(pe2_observations),
-                    'combo_definitions': len(definitions),
-                },
-            )
+        profile_absent = dynamic_profile is None
 
         # Reject genuinely incomplete/non-finite core data.  One field is
         # intentionally nullable because that exact missingness was present in
         # V3 training when a pattern did not pass the perfect 10/10 combo.
         nullable = {'pat_recent_vs_deep_sharpe'}
-        for key, value in dynamic_profile.items():
-            if key in nullable and not math.isfinite(float(value)):
-                continue
-            if not math.isfinite(float(value)):
-                raise PatternProfileUnavailable(
-                    'nonfinite_pattern_profile', {'feature': key})
+        if not profile_absent:
+            for key, value in dynamic_profile.items():
+                if key in nullable and not math.isfinite(float(value)):
+                    continue
+                if not math.isfinite(float(value)):
+                    raise PatternProfileUnavailable(
+                        'nonfinite_pattern_profile', {'feature': key})
 
         date_str = str(date)[:10]
         actual_entry, concurrent_dates = self._context_concurrent_dates(
@@ -1210,6 +1240,65 @@ class FeatureEngine:
         prebuilt_profile, prebuilt_aggregate_meta = self._aggregate_pattern_profile(
             prebuilt_rows, definitions, data_years, dir_char, int(days_out))
         qualifying_sets_match = set(prebuilt_rows) == set(dynamic_rows)
+
+        if profile_absent:
+            # Absence is itself a valid, scoreable model state only when both
+            # independent sources agree that the exact duration has no
+            # qualifying pattern-depth rows.  Any one-sided row is still a hard
+            # integrity failure.
+            if prebuilt_profile is not None or prebuilt_rows or dynamic_rows:
+                raise PatternProfileUnavailable(
+                    'prebuilt_profile_mismatch',
+                    {
+                        'dynamic_combo_count': len(dynamic_rows),
+                        'prebuilt_combo_count': len(prebuilt_rows),
+                        'qualifying_sets_match': qualifying_sets_match,
+                        'model_values_match': False,
+                        'dynamic_best_combo': None,
+                        'prebuilt_best_combo': (
+                            prebuilt_aggregate_meta.get('best_combo')
+                            if isinstance(prebuilt_aggregate_meta, dict) else None
+                        ),
+                    },
+                )
+
+            served_profile = self._empty_pattern_profile()
+            result = (
+                served_profile,
+                {
+                    'source': 'dynamic_recalculation_no_qualifying_profile',
+                    'profile_state': 'no_qualifying_profile',
+                    'prebuilt_validated': True,
+                    'profile_validation': 'exact_absence',
+                    'reconciled_model_fields': [],
+                    'dynamic_best_combo': None,
+                    'prebuilt_best_combo': None,
+                    'qualifying_combo_count': 0,
+                    'prebuilt_combo_count': 0,
+                    'profile_hash': self._profile_hash(served_profile),
+                    'dynamic_profile_hash': self._profile_hash(served_profile),
+                    'data_as_of': str(price_df.index[-1])[:10],
+                    'price_path': price_path,
+                    'best_combo': None,
+                    'completed_observations': len(regular_observations),
+                    'completed_pe2_observations': len(pe2_observations),
+                    'combo_definitions': len(definitions),
+                    '_active_pairs': snapshot['active_pairs'],
+                    '_active_pairs_by_date': snapshot.get(
+                        'active_pairs_by_date', {date_str: snapshot['active_pairs']}),
+                    'actual_entry_date': actual_entry.strftime('%Y-%m-%d'),
+                    'concurrent_nominal_dates': list(concurrent_dates),
+                    'nullable_features': sorted(served_profile),
+                },
+            )
+            self._lru_put(
+                self._recalculated_profile_cache,
+                cache_key,
+                result,
+                CONTEXT_PROFILE_CACHE_MAX,
+            )
+            return result
+
         strict_differences = (
             self._profile_value_differences(
                 prebuilt_profile,
@@ -1407,28 +1496,9 @@ class FeatureEngine:
                 best_combo = combo_name
                 best_row = row
 
-        # V1 NaN-fill keys
-        v1_nan_keys = [
-            'sharpe_ratio', 'avg_profit', 'median_profit', 'avg_profit2',
-            'mfe_ratio', 'profit_per_day', 'sharpe_per_day',
-            'daysOut', 'daysOut_bucket', 'direction',
-            'data_years', 'deepest_pass', 'depth_utilization',
-            'passes_at_max_depth', 'passes_recent_10', 'recent_vs_deep_sharpe',
-            'num_combos_qualifying',
-            'pe_match', 'pe_deepest', 'pe_utilization',
-            'best_winrate', 'worst_winrate', 'deepest_pass_capped30',
-        ]
-        # V2 NaN-fill keys
-        v2_nan_keys = [
-            'consistency_std', 'concurrent_count',
-            'neighbor_avg_wr', 'sharpness', 'pre_slope', 'post_cliff',
-            'hit_last_year',
-        ]
-
         if best_row is None:
             # Pattern not found in any combo
-            nan_dict = {f'pat_{k}': np.nan for k in v1_nan_keys + v2_nan_keys}
-            return nan_dict
+            return self._empty_pattern_profile()
 
         # Get data_years from price CSV
         price_df = self._get_price_df(symbol)
@@ -2667,6 +2737,14 @@ class FeatureEngine:
         price_df = self._get_price_df(symbol)
 
         pat = dict(profile)
+        if profile_meta.get('profile_state') == 'no_qualifying_profile':
+            # Preserve exact parity with POST /score for arbitrary durations:
+            # the absence of a qualifying profile is represented by missing
+            # pattern fields, while technical/market/calendar inputs remain
+            # available to the model.
+            return self._assemble_features(
+                symbol, date, int(daysOut), dir_char, pat), profile_meta
+
         pat['pat_daysOut'] = int(daysOut)
         active_pairs_by_date = profile_meta.get('_active_pairs_by_date') or {
             str(date)[:10]: set(profile_meta.get('_active_pairs', set()))

@@ -91,7 +91,7 @@ Self-contained Flask app. Deploy by copying the `ml_scorer/` folder.
 
 **Endpoints:**
 - `POST /score` -- Score one or batch of opportunities. Input: symbol, date, daysOut, direction, tier (optional). Output: pred_return, pred_mfe, win_prob, p_hit_return, p_hit_mfe, ml_score (0-100), tier.
-- `POST /score/context` -- Additive US stock/ETF 30/60/90 inclusive-calendar-day duration scoring. Rebuilds the model-faithful all-combo pattern profile, derives raw daysOut/tier, and independently recalculates the caller's string `years`/recurrence selection as explanatory screen evidence that does not gate V3 inference.
+- `POST /score/context` -- Additive US stock/ETF 30/60/90 inclusive-calendar-day duration scoring. Rebuilds the model-faithful all-combo pattern profile, derives raw daysOut/tier, and independently recalculates the caller's string `years`/recurrence selection as explanatory screen evidence that does not gate V3 inference. If raw and prebuilt data both prove that no combo qualifies at an exact duration, V3 preserves the existing manual scorer's missing-profile feature state and still returns the numeric reading; unverified disagreement remains unavailable.
 - `POST /select` -- Find and score today's best opportunities from nightly parquet cache.
 - `GET /health` -- Service health check
 - `GET /metadata` -- Model/schema/data versions, complete 26-series shared-data

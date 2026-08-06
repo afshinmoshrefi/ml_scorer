@@ -133,6 +133,16 @@ class RecalculationUnitTests(unittest.TestCase):
             rows, definitions, 30.0, 'l', 29)
         self.assertTrue(math.isnan(profile['pat_recent_vs_deep_sharpe']))
 
+    def test_empty_recalculated_profile_uses_the_legacy_missing_value_contract(self):
+        profile = self.engine._empty_pattern_profile()
+        expected = {
+            'pat_sharpe_ratio', 'pat_avg_profit2', 'pat_daysOut',
+            'pat_concurrent_count', 'pat_neighbor_avg_wr',
+            'pat_hit_last_year',
+        }
+        self.assertTrue(expected.issubset(profile))
+        self.assertTrue(all(math.isnan(float(value)) for value in profile.values()))
+
     def test_context_concurrent_count_uses_training_tier_boundaries(self):
         active_pairs_by_date = {
             '2026-08-03': {
@@ -794,6 +804,34 @@ class RealDataParityTests(unittest.TestCase):
         self.assertEqual(intentional_nulls, {'pat_recent_vs_deep_sharpe'})
         ordered_vector = [context_features[name] for name in FEATURE_COLS]
         self.assertEqual(len(ordered_vector), 62)
+
+    def test_trgp_empty_60_and_90_day_profiles_match_manual_scoring_features(self):
+        if not (
+            (REAL_DATA_ROOT / 'csv/US/TRGP.csv').is_file()
+            and (REAL_DATA_ROOT / 'sp500/opp_by_symbol/TRGP/10_8.csv.gz').is_file()
+        ):
+            self.skipTest('TRGP parity fixture data is not installed')
+
+        for days_out in (59, 89):
+            with self.subTest(calendar_days=days_out + 1):
+                engine = FeatureEngine()
+                context_features, meta = engine.compute_recalculated_features(
+                    '2', 'TRGP', '2026-08-06', days_out, 'l')
+                manual_features = engine.compute_features(
+                    'TRGP', '2026-08-06', days_out, 'l')
+
+                self.assertEqual(meta['profile_state'], 'no_qualifying_profile')
+                self.assertEqual(meta['profile_validation'], 'exact_absence')
+                self.assertEqual(meta['qualifying_combo_count'], 0)
+                self.assertTrue(meta['prebuilt_validated'])
+                for name in FEATURE_COLS:
+                    left = float(context_features[name])
+                    right = float(manual_features[name])
+                    if math.isnan(left) or math.isnan(right):
+                        self.assertTrue(
+                            math.isnan(left) and math.isnan(right), name)
+                    else:
+                        self.assertAlmostEqual(left, right, places=12, msg=name)
 
     def test_equity_cl_and_crude_context_use_distinct_caches(self):
         if not (REAL_DATA_ROOT / 'csv/US/CL.csv').is_file():

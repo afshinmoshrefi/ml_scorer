@@ -156,7 +156,8 @@ Score one or multiple opportunities. `tier` is optional -- auto-detected from `d
 Additive TradeWave duration-comparison endpoint. Legacy `POST /score` remains unchanged.
 This endpoint recalculates the pattern's full V3 all-qualifying-combo profile
 at one exact inclusive calendar window before scoring it. Its context contract is
-`duration-comparison-context-v4`.
+`duration-comparison-context-v5` and its pattern-profile schema is
+`all-qualifying-combos-v2`.
 
 ```json
 {
@@ -187,13 +188,17 @@ The scorer enumerates the symbol's actual combo files, recomputes each
 completed observation from raw adjusted OHLC data, applies the real combo
 threshold, aggregates the same profile fields used in V3 training, and then
 computes the other feature groups. A matching prebuilt exact-horizon profile
-is reused only after the raw-price result validates it. No qualifying profile
-returns a structured `pattern_profile_unavailable` item instead of a fabricated
-or selected-cohort feature vector.
+is reused only after the raw-price result validates it. If both the raw rebuild
+and the prebuilt opportunity data prove that the qualifying set is empty, that
+validated absence is still scoreable: the pattern fields use the same missing-
+profile representation as the existing manual `POST /score` workflow, while the
+stock, market, calendar, and other available fields remain unchanged. A one-sided
+row, an unverified mismatch, or missing required raw price data remains unavailable.
 
 Before model inference, the scorer recomputes the requested cohort's completed
-direction-adjusted observations. Every item with a valid all-combo V3 profile
-proceeds through the unchanged 62-feature ensemble. Its `selected_recurrence`
+direction-adjusted observations. Every item with a validated qualifying profile
+or validated empty-profile state proceeds through the unchanged 62-feature
+ensemble. Its `selected_recurrence`
 summary separately reports `qualified`, `below_threshold`, or
 `insufficient_history` with the available sample evidence. A failed table-screen
 recurrence therefore remains visible beside the model reading but does not erase
