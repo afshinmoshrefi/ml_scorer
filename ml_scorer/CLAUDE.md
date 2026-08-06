@@ -295,13 +295,13 @@ the scorer process caches only the bounded hot working set.
 
 The standalone V3 development scorer does not share a filesystem with the
 TradeWave development app box. `sync_dev_data.sh` is the dev-only bridge used
-before TradeWave's nightly AI-score prefetch window. It first downloads and
-cryptographically validates the app box's authoritative EOD readiness marker
-with that release's own validator. Only then does it incrementally rsync the
-US, ETF, index, and commodity CSV directories, without deletion. It verifies
-all 26 shared V3 inputs against the completed US session, proves the marker did
-not change during transfer, restarts the scorer to clear process caches, and
-records the completed generation under `/var/lib/ml_scorer/`.
+before TradeWave's nightly AI-score prefetch window. It first downloads the app
+box's authoritative EOD readiness marker and runs that release's own validator
+on the app box with its application environment. Only then does it incrementally
+rsync the US, ETF, index, and commodity CSV directories, without deletion. It
+verifies all 26 shared V3 inputs against the completed US session, proves the
+marker did not change during transfer, restarts the scorer to clear process
+caches, and records the completed generation under `/var/lib/ml_scorer/`.
 
 The dev root cron retries at 03:40, 04:40, and 05:40 UTC Tuesday-Saturday:
 

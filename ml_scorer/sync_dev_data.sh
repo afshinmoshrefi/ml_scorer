@@ -50,29 +50,18 @@ trap cleanup EXIT
 ssh_options=(-o BatchMode=yes -o ConnectTimeout=10)
 marker_before=$sync_tmp/update_status.before.json
 marker_after=$sync_tmp/update_status.after.json
-readiness_module=$sync_tmp/eod_readiness.py
 
-if ! ssh "${ssh_options[@]}" "$source_host" \
-  'test -r /var/lib/tradewave/eod/update_status.json && cat /var/lib/tradewave/eod/update_status.json' \
-  >"$marker_before"; then
-  echo "DEV scorer data sync deferred: authoritative TradeWave marker is absent."
-  exit 0
-fi
-if ! scp -q "${ssh_options[@]}" \
-  "$source_host:$source_release/data_updater/eod_readiness.py" \
-  "$readiness_module"; then
-  echo "DEV scorer data sync deferred: readiness validator is unavailable." >&2
-  exit 0
-fi
-
-marker_identity=$(
-  "$python_bin" - "$marker_before" "$readiness_module" <<'PY'
+remote_marker_identity() {
+  ssh "${ssh_options[@]}" "$source_host" \
+    /home/flask/venv/bin/python - \
+    "$source_release/data_updater/eod_readiness.py" \
+    /var/lib/tradewave/eod/update_status.json <<'PY'
 import datetime as dt
 import importlib.util
 import json
 import sys
 
-marker_path, module_path = sys.argv[1:]
+module_path, marker_path = sys.argv[1:]
 spec = importlib.util.spec_from_file_location("tw2_eod_readiness", module_path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -95,12 +84,43 @@ print(
     sep="\t",
 )
 PY
+}
+
+if ! ssh "${ssh_options[@]}" "$source_host" \
+  'test -r /var/lib/tradewave/eod/update_status.json && cat /var/lib/tradewave/eod/update_status.json' \
+  >"$marker_before"; then
+  echo "DEV scorer data sync deferred: authoritative TradeWave marker is absent."
+  exit 0
+fi
+
+marker_identity=$(
+  remote_marker_identity
 ) || {
   echo "DEV scorer data sync deferred: authoritative marker is not current." >&2
   exit 0
 }
 IFS=$'\t' read -r generation_fingerprint readiness_fingerprint completed_session target_date \
   <<<"$marker_identity"
+MARKER_FILE="$marker_before" \
+  EXPECTED_GENERATION="$generation_fingerprint" \
+  EXPECTED_READINESS="$readiness_fingerprint" \
+  EXPECTED_SESSION="$completed_session" \
+  EXPECTED_TARGET="$target_date" \
+  "$python_bin" - <<'PY'
+import json
+import os
+
+with open(os.environ["MARKER_FILE"], encoding="utf-8") as handle:
+    marker = json.load(handle)
+expected = {
+    "generation_fingerprint": os.environ["EXPECTED_GENERATION"],
+    "readiness_fingerprint": os.environ["EXPECTED_READINESS"],
+    "completed_session": os.environ["EXPECTED_SESSION"],
+    "target_table_date": os.environ["EXPECTED_TARGET"],
+}
+if any(marker.get(key) != value for key, value in expected.items()):
+    raise SystemExit("downloaded marker does not match the canonically validated marker")
+PY
 
 if [[ -f "$state_file" ]] && STATE_FILE="$state_file" \
   EXPECTED_GENERATION="$generation_fingerprint" \
@@ -120,27 +140,34 @@ done
 ssh "${ssh_options[@]}" "$source_host" \
   'test -r /var/lib/tradewave/eod/update_status.json && cat /var/lib/tradewave/eod/update_status.json' \
   >"$marker_after"
-"$python_bin" - "$marker_before" "$marker_after" "$readiness_module" \
+marker_after_identity=$(remote_marker_identity) || {
+  echo "ABORT: authoritative marker became invalid during scorer data sync" >&2
+  exit 1
+}
+[[ "$marker_after_identity" == "$marker_identity" ]] || {
+  echo "ABORT: authoritative marker changed during scorer data sync" >&2
+  exit 1
+}
+"$python_bin" - "$marker_before" "$marker_after" \
+  "$generation_fingerprint" "$readiness_fingerprint" \
   "$completed_session" "$target_date" <<'PY'
-import importlib.util
 import json
 import sys
 
-before_path, after_path, module_path, completed, target = sys.argv[1:]
-spec = importlib.util.spec_from_file_location("tw2_eod_readiness", module_path)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+before_path, after_path, generation, readiness, completed, target = sys.argv[1:]
 with open(before_path, encoding="utf-8") as handle:
     before = json.load(handle)
 with open(after_path, encoding="utf-8") as handle:
     after = json.load(handle)
-if not module.validate_success_marker(
-    after,
-    expected_target_table_date=target,
-    expected_completed_session=completed,
-):
-    raise SystemExit("authoritative marker changed to an invalid generation")
-if before.get("readiness_fingerprint") != after.get("readiness_fingerprint"):
+expected = {
+    "generation_fingerprint": generation,
+    "readiness_fingerprint": readiness,
+    "completed_session": completed,
+    "target_table_date": target,
+}
+if any(after.get(key) != value for key, value in expected.items()):
+    raise SystemExit("downloaded marker changed from the canonically validated generation")
+if any(before.get(key) != after.get(key) for key in expected):
     raise SystemExit("authoritative marker changed during scorer data sync")
 PY
 
