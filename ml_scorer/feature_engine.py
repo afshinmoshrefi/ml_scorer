@@ -29,6 +29,7 @@ import json
 import hashlib
 import math
 import warnings
+from collections import OrderedDict
 from datetime import timedelta
 
 import numpy as np
@@ -41,6 +42,8 @@ try:
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
         ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF, PATTERN_RISK_FREE_RETURN,
+        CONTEXT_PROFILE_CACHE_MAX, CONTEXT_SNAPSHOT_CACHE_MAX,
+        CONTEXT_TARGET_CACHE_MAX,
     )
 except ImportError:
     from config import (
@@ -49,6 +52,8 @@ except ImportError:
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
         ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF, PATTERN_RISK_FREE_RETURN,
+        CONTEXT_PROFILE_CACHE_MAX, CONTEXT_SNAPSHOT_CACHE_MAX,
+        CONTEXT_TARGET_CACHE_MAX,
     )
 
 # SPX_SEASONAL_CUTOFF_YEAR is not in the package config; define here.
@@ -68,6 +73,12 @@ _V3_AGGREGATE_PROFILE_KEYS = (
     'pat_pe_utilization', 'pat_best_winrate', 'pat_worst_winrate',
     'pat_deepest_pass_capped30', 'pat_consistency_std', 'pat_daysOut',
 )
+
+_PINNED_PRICE_SYMBOLS = frozenset({
+    'SPY', 'HYG', 'LQD', 'XLK', 'XLU', 'XLF', 'XLE', 'XLV', 'XLY',
+    'XLC', 'XLI', 'XLP', 'XLRE', 'XLB', 'VIX', 'VIX3M', 'US10Y',
+    'US2Y', 'ADVN', 'DECN', 'IRX', 'DXY', 'TLT',
+})
 
 
 class PatternProfileUnavailable(RuntimeError):
@@ -105,10 +116,29 @@ class FeatureEngine:
         # SPX seasonal lookup (lazy-loaded)
         self._spx_seasonal_lookup = None
         # Resource-aware snapshots and dynamically rebuilt checkpoint profiles.
-        self._context_opp_snapshot_cache = {}
-        self._recalculated_profile_cache = {}
-        self._context_target_paths = {}
+        self._context_opp_snapshot_cache = OrderedDict()
+        self._recalculated_profile_cache = OrderedDict()
+        self._selected_recurrence_cache = OrderedDict()
+        self._context_target_cache = OrderedDict()
         self._price_source_versions = {}
+
+    @staticmethod
+    def _lru_get(cache, key):
+        try:
+            value = cache.pop(key)
+        except KeyError:
+            return None
+        cache[key] = value
+        return value
+
+    @staticmethod
+    def _lru_put(cache, key, value, maximum):
+        cache.pop(key, None)
+        cache[key] = value
+        evicted = None
+        if len(cache) > maximum:
+            evicted = cache.popitem(last=False)
+        return evicted
 
     # ------------------------------------------------------------------
     # Data Loading
@@ -143,6 +173,9 @@ class FeatureEngine:
             'XLE': ETF_CSV_DIR, 'XLV': ETF_CSV_DIR, 'XLY': ETF_CSV_DIR,
             'XLC': ETF_CSV_DIR, 'XLI': ETF_CSV_DIR, 'XLP': ETF_CSV_DIR,
             'XLRE': ETF_CSV_DIR, 'XLB': ETF_CSV_DIR,
+            # ETF_CATEGORY_SECTOR_ETF maps fixed-income ETFs to TLT. Keep it
+            # in the version-aware shared-source cache just like sector ETFs.
+            'TLT': ETF_CSV_DIR,
         }
         indx_symbols = {
             'VIX': INDX_CSV_DIR, 'VIX3M': INDX_CSV_DIR,
@@ -160,7 +193,8 @@ class FeatureEngine:
             path = os.path.join(directory, f'{sym}.csv')
             if os.path.exists(path):
                 stat = os.stat(path)
-                version = (path, stat.st_mtime_ns, stat.st_size)
+                version = (
+                    path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
                 version_key = ('market', sym)
                 if self._price_source_versions.get(version_key) != version:
                     self._price_cache[sym] = self._load_csv(path)
@@ -172,7 +206,8 @@ class FeatureEngine:
             path = os.path.join(directory, f'{sym}.csv')
             if os.path.exists(path):
                 stat = os.stat(path)
-                version = (path, stat.st_mtime_ns, stat.st_size)
+                version = (
+                    path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
                 version_key = ('commodity', sym)
                 if self._price_source_versions.get(version_key) != version:
                     self._commodity_price_cache[sym] = self._load_csv(path)
@@ -439,16 +474,41 @@ class FeatureEngine:
         """Load a resource-qualified target without ticker namespace ambiguity."""
         price_path, opp_dir = self._context_paths(resource_id, symbol)
         stat = os.stat(price_path)
-        file_version = (price_path, stat.st_mtime_ns, stat.st_size)
+        file_version = (
+            price_path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+        target_key = (str(resource_id), symbol)
 
         # Load regime inputs first, then explicitly install the target in the
         # equity/ETF namespace.  Commodity CL is held in its own cache.
         self.load_price_data([])
-        if self._context_target_paths.get(symbol) != file_version:
-            self._price_cache[symbol] = self._load_csv(price_path)
-            self._context_target_paths[symbol] = file_version
+        cached = self._lru_get(self._context_target_cache, target_key)
+        if cached is None or cached[3] != file_version:
+            frame = self._load_csv(price_path)
+            cached = (frame, price_path, opp_dir, file_version)
+            evicted = self._lru_put(
+                self._context_target_cache,
+                target_key,
+                cached,
+                CONTEXT_TARGET_CACHE_MAX,
+            )
+            if evicted is not None:
+                evicted_key, evicted_value = evicted
+                evicted_symbol = evicted_key[1]
+                still_cached = any(
+                    key[1] == evicted_symbol for key in self._context_target_cache
+                )
+                if (
+                    not still_cached
+                    and evicted_symbol not in _PINNED_PRICE_SYMBOLS
+                    and self._price_cache.get(evicted_symbol) is evicted_value[0]
+                ):
+                    self._price_cache.pop(evicted_symbol, None)
 
-        return self._price_cache[symbol], price_path, opp_dir, file_version
+        # Downstream V3 feature groups use the legacy symbol lookup. Install the
+        # current resource-qualified frame for only this calculation; LRU
+        # eviction above prevents target frames from accumulating forever.
+        self._price_cache[symbol] = cached[0]
+        return cached
 
     def _combo_definitions(self, opp_dir):
         """Return real per-symbol combo definitions in on-disk generator order."""
@@ -472,39 +532,46 @@ class FeatureEngine:
                 'is_pe': is_pe,
                 'path': path,
                 'mtime_ns': stat.st_mtime_ns,
+                'ctime_ns': stat.st_ctime_ns,
                 'bytes': stat.st_size,
             })
-        # Do not let filesystem enumeration order decide which equal-Sharpe row
-        # supplies avg_profit2.  The order and resulting tie behavior are stable
-        # across hosts, restarts and copied data trees.
-        return sorted(
-            definitions,
-            key=lambda item: (
-                item['year1'], item['year2'], int(item['is_pe']), item['name']),
-        )
+        # Preserve the same combo insertion order used by the V3 training
+        # builder and the legacy /score path. Rounded-Sharpe ties select the
+        # first row, so changing this order would change a trained feature.
+        return definitions
 
     @staticmethod
     def _definitions_version(definitions):
         material = '|'.join(
-            f"{item['name']}:{item['mtime_ns']}:{item['bytes']}"
+            f"{item['name']}:{item['mtime_ns']}:{item['ctime_ns']}:{item['bytes']}"
             for item in definitions
         )
         return hashlib.sha256(material.encode('utf-8')).hexdigest()
 
-    def _context_opp_snapshot(self, opp_dir, date_str, definitions):
+    def _context_opp_snapshot(self, opp_dir, date_str, definitions,
+                              active_date_strs=None):
         """Read all prebuilt rows for one exact date once.
 
         Besides exact-horizon validation, the complete active-pair set is used
         for the V3 concurrent-pattern feature.  This snapshot is resource-aware;
         unlike the legacy scorer it never silently falls back to another market.
         """
-        key = (opp_dir, date_str, self._definitions_version(definitions))
-        cached = self._context_opp_snapshot_cache.get(key)
+        active_date_strs = frozenset(active_date_strs or (date_str,))
+        active_date_strs = frozenset((*active_date_strs, date_str))
+        key = (
+            opp_dir,
+            date_str,
+            tuple(sorted(active_date_strs)),
+            self._definitions_version(definitions),
+        )
+        cached = self._lru_get(self._context_opp_snapshot_cache, key)
         if cached is not None:
             return cached
 
         rows = {}
-        active_pairs = set()
+        active_pairs_by_date = {
+            active_date: set() for active_date in active_date_strs
+        }
         for definition in definitions:
             combo_name = definition['name']
             combo_rows = {}
@@ -522,16 +589,18 @@ class FeatureEngine:
                         fields = line.rstrip().split(',')
                         if len(fields) <= max(date_idx, days_idx, dir_idx, sr_idx, ap_idx, mp_idx, ap2_idx):
                             continue
-                        if fields[date_idx][:10] != date_str:
+                        row_date = fields[date_idx][:10]
+                        if row_date not in active_date_strs:
                             continue
                         pair = (int(fields[days_idx]), fields[dir_idx])
-                        active_pairs.add(pair)
-                        combo_rows[pair] = {
-                            'sharpe_ratio': float(fields[sr_idx]),
-                            'avg_profit': float(fields[ap_idx]),
-                            'median_profit': float(fields[mp_idx]),
-                            'avg_profit2': float(fields[ap2_idx]),
-                        }
+                        active_pairs_by_date[row_date].add(pair)
+                        if row_date == date_str:
+                            combo_rows[pair] = {
+                                'sharpe_ratio': float(fields[sr_idx]),
+                                'avg_profit': float(fields[ap_idx]),
+                                'median_profit': float(fields[mp_idx]),
+                                'avg_profit2': float(fields[ap2_idx]),
+                            }
             except Exception as exc:
                 warnings.warn(
                     f'Skipping context combo file {definition["path"]}: {exc}')
@@ -539,9 +608,68 @@ class FeatureEngine:
             if combo_rows:
                 rows[combo_name] = combo_rows
 
-        snapshot = {'rows': rows, 'active_pairs': active_pairs}
-        self._context_opp_snapshot_cache[key] = snapshot
+        snapshot = {
+            'rows': rows,
+            'active_pairs': active_pairs_by_date[date_str],
+            'active_pairs_by_date': active_pairs_by_date,
+        }
+        self._lru_put(
+            self._context_opp_snapshot_cache,
+            key,
+            snapshot,
+            CONTEXT_SNAPSHOT_CACHE_MAX,
+        )
         return snapshot
+
+    @staticmethod
+    def _context_entry_date(price_index, nominal_date):
+        """Return the 0..3-day forward-snapped entry used by V3 training.
+
+        Future opportunity dates can be newer than the latest EOD price row. In
+        that case only the deterministic weekend part of the snap is knowable,
+        so use the next weekday instead of rejecting an otherwise scoreable row.
+        Once EOD data arrives, the price-index branch becomes authoritative and
+        the scorer process/data generation changes before caches are warmed.
+        """
+        nominal_date = pd.Timestamp(nominal_date)
+        last_price_date = price_index[-1] if len(price_index) else None
+        for offset in range(0, 4):
+            candidate = nominal_date + pd.Timedelta(days=offset)
+            if candidate in price_index:
+                return candidate
+            if last_price_date is not None and candidate > last_price_date:
+                if candidate.weekday() < 5:
+                    return candidate
+        return None
+
+    def _context_concurrent_dates(self, price_index, nominal_date):
+        """Nominal dates that V3 training maps to the same actual entry."""
+        actual_entry = self._context_entry_date(price_index, nominal_date)
+        if actual_entry is None:
+            return None, ()
+        nominal_dates = []
+        for offset in range(0, 4):
+            candidate = actual_entry - pd.Timedelta(days=offset)
+            if self._context_entry_date(price_index, candidate) == actual_entry:
+                nominal_dates.append(candidate.strftime('%Y-%m-%d'))
+        return actual_entry, tuple(sorted(nominal_dates))
+
+    @staticmethod
+    def _context_concurrent_count(active_pairs_by_date, days_out):
+        """Count same-entry patterns within the model's training tier."""
+        days_out = int(days_out)
+        if days_out <= 30:
+            tier_min, tier_max = 10, 30
+        elif days_out <= 60:
+            tier_min, tier_max = 31, 60
+        else:
+            tier_min, tier_max = 61, 90
+        return float(sum(
+            1
+            for pairs in active_pairs_by_date.values()
+            for pair_days_out, _direction in pairs
+            if tier_min <= int(pair_days_out) <= tier_max
+        ))
 
     def _compute_historical_observation(self, price_df, month, day, year,
                                         days_out, dir_char):
@@ -616,6 +744,175 @@ class FeatureEngine:
             'entry_date': entry,
             'exit_date': exit_date,
         }
+
+    @staticmethod
+    def _selected_winning_years(partial):
+        """Read TradeWave's selected recurrence threshold from request context.
+
+        The context endpoint remains compatible with older callers that used
+        ``partial`` only as opaque provenance.  A threshold is enforced only
+        when one of the known statistical fields is present.
+        """
+        value = partial
+        for _depth in range(3):
+            if not isinstance(value, dict):
+                break
+            selected = None
+            for field in ('min_winning_years', 'partialYears', 'year2'):
+                if value.get(field) not in (None, ''):
+                    selected = value[field]
+                    break
+            if selected is not None:
+                value = selected
+                break
+            if 'selection' not in value:
+                return None
+            value = value.get('selection')
+        if value is None or isinstance(value, bool) or value == '':
+            return None
+        try:
+            number = float(str(value).strip())
+        except (TypeError, ValueError) as exc:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence',
+                {'field': 'min_winning_years'},
+            ) from exc
+        if not math.isfinite(number) or not number.is_integer() or number <= 0:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence',
+                {'field': 'min_winning_years'},
+            )
+        return int(number)
+
+    @staticmethod
+    def _selected_year_spec(years):
+        """Return (mode, PE phase, requested observations) for a years string."""
+        value = str(years or '').strip().lower()
+        pe_phase = None
+        if value.startswith('pe') and '-' in value:
+            phase_text, count_text = value[2:].split('-', 1)
+            try:
+                phase_token = int(phase_text)
+                requested = int(count_text)
+            except ValueError as exc:
+                raise PatternProfileUnavailable(
+                    'invalid_selected_recurrence', {'field': 'years'}
+                ) from exc
+            # TradeWave's public PE labels use 0..3 while the scorer's
+            # get_pe_year helper uses 1..4.  In both systems ``pe2`` is the
+            # midterm phase; pe0 maps to the scorer's phase 4.
+            if phase_token not in (0, 1, 2, 3, 4):
+                raise PatternProfileUnavailable(
+                    'invalid_selected_recurrence', {'field': 'years'}
+                )
+            pe_phase = 4 if phase_token == 0 else phase_token
+            mode = 'pe'
+        else:
+            try:
+                requested = int(value)
+            except ValueError as exc:
+                raise PatternProfileUnavailable(
+                    'invalid_selected_recurrence', {'field': 'years'}
+                ) from exc
+            mode = 'consecutive'
+        if requested <= 0 or requested > 100:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence', {'field': 'years'}
+            )
+        return mode, pe_phase, requested
+
+    def compute_selected_recurrence_summary(self, resource_id, symbol, date,
+                                            days_out, direction, years, partial):
+        """Recalculate the caller-selected historical cohort at one horizon.
+
+        This summary is an eligibility gate and an explanation, not a new V3
+        feature definition.  V3 still consumes its trained all-combo profile
+        only after the selected cohort meets its original recurrence rule.
+        """
+        if isinstance(date, str):
+            date = pd.Timestamp(date)
+        dir_char = direction[0].lower()
+        mode, pe_phase, requested = self._selected_year_spec(years)
+        required = self._selected_winning_years(partial)
+        if required is not None and required > requested:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence',
+                {
+                    'required_positive_years': required,
+                    'requested_observations': requested,
+                },
+            )
+
+        price_df, price_path, _opp_dir, file_version = self._prepare_context_target(
+            resource_id, symbol)
+        cache_key = (
+            str(resource_id), symbol, str(date)[:10], int(days_out), dir_char,
+            str(years).strip().lower(), required, file_version,
+        )
+        cached = self._lru_get(self._selected_recurrence_cache, cache_key)
+        if cached is not None:
+            return cached
+
+        observations = []
+        first_year = int(price_df.index[0].year)
+        for year in range(first_year, int(date.year)):
+            if mode == 'pe' and get_pe_year(year) != pe_phase:
+                continue
+            observation = self._compute_historical_observation(
+                price_df, date.month, date.day, year, int(days_out), dir_char)
+            if observation is not None:
+                observations.append(observation)
+
+        selected = observations[-requested:]
+        sample_size = len(selected)
+        positive_years = sum(row['return'] >= 0.0 for row in selected)
+        complete = sample_size == requested
+        if required is None:
+            status = 'not_enforced'
+        elif not complete:
+            status = 'insufficient_history'
+        elif positive_years < required:
+            status = 'below_threshold'
+        else:
+            status = 'qualified'
+
+        returns = np.asarray([row['return'] for row in selected], dtype=float)
+        favorable = np.asarray(
+            [row['favorable_return'] for row in selected], dtype=float)
+        summary = {
+            'status': status,
+            'mode': mode,
+            'years': str(years).strip().lower(),
+            'requested_observations': requested,
+            'sample_size': sample_size,
+            'positive_years': int(positive_years),
+            'required_positive_years': required,
+            'win_rate': (
+                round(float(positive_years) / sample_size, 6)
+                if sample_size else None
+            ),
+            'average_return_pct': (
+                round(float(np.mean(returns)), 4) if sample_size else None
+            ),
+            'median_return_pct': (
+                round(float(np.median(returns)), 4) if sample_size else None
+            ),
+            'average_favorable_excursion_pct': (
+                round(float(np.mean(favorable)), 4) if sample_size else None
+            ),
+            'complete': complete,
+            'data_as_of': str(price_df.index[-1])[:10],
+            'price_source': os.path.basename(price_path),
+        }
+        if pe_phase is not None:
+            summary['pe_phase'] = pe_phase
+        self._lru_put(
+            self._selected_recurrence_cache,
+            cache_key,
+            summary,
+            CONTEXT_PROFILE_CACHE_MAX,
+        )
+        return summary
 
     def _combo_row_from_observations(self, observations, year1, year2, days_out):
         """Build one opportunity row if its real combo threshold qualifies."""
@@ -704,8 +1001,7 @@ class FeatureEngine:
         # The nullable ratio mirrors V3 training: absence of a perfect 10/10
         # pass is represented as missing, which all three model families learned.
         recent_vs_deep = np.nan
-        if (sharpe_at_10 is not None and sharpe_at_deepest is not None
-                and sharpe_at_deepest != 0):
+        if sharpe_at_10 and sharpe_at_deepest:
             recent_vs_deep = sharpe_at_10 / sharpe_at_deepest
 
         avg_profit = best_row['avg_profit']
@@ -799,7 +1095,7 @@ class FeatureEngine:
             str(resource_id), symbol, str(date)[:10], int(days_out), dir_char,
             file_version, definitions_version,
         )
-        cached = self._recalculated_profile_cache.get(cache_key)
+        cached = self._lru_get(self._recalculated_profile_cache, cache_key)
         if cached is not None:
             return cached
 
@@ -857,13 +1153,23 @@ class FeatureEngine:
                     'nonfinite_pattern_profile', {'feature': key})
 
         date_str = str(date)[:10]
-        snapshot = self._context_opp_snapshot(opp_dir, date_str, definitions)
+        actual_entry, concurrent_dates = self._context_concurrent_dates(
+            price_df.index, date)
+        if actual_entry is None:
+            raise PatternProfileUnavailable(
+                'target_entry_unavailable', {'date': date_str})
+        snapshot = self._context_opp_snapshot(
+            opp_dir,
+            date_str,
+            definitions,
+            active_date_strs=concurrent_dates,
+        )
         prebuilt_rows = {
             name: rows[(int(days_out), dir_char)]
             for name, rows in snapshot['rows'].items()
             if (int(days_out), dir_char) in rows
         }
-        prebuilt_profile, _ = self._aggregate_pattern_profile(
+        prebuilt_profile, prebuilt_aggregate_meta = self._aggregate_pattern_profile(
             prebuilt_rows, definitions, data_years, dir_char, int(days_out))
         qualifying_sets_match = set(prebuilt_rows) == set(dynamic_rows)
         values_match = (
@@ -873,29 +1179,60 @@ class FeatureEngine:
                 keys=_V3_AGGREGATE_PROFILE_KEYS,
             )
         )
-        prebuilt_validated = qualifying_sets_match and values_match
-        source = ('prebuilt_exact_horizon_validated'
-                  if prebuilt_validated else 'dynamic_raw_prices')
+        if not qualifying_sets_match or prebuilt_profile is None or not values_match:
+            raise PatternProfileUnavailable(
+                'prebuilt_profile_mismatch',
+                {
+                    'dynamic_combo_count': len(dynamic_rows),
+                    'prebuilt_combo_count': len(prebuilt_rows),
+                    'qualifying_sets_match': qualifying_sets_match,
+                    'model_values_match': values_match,
+                },
+            )
+        # The dynamic rebuild proves the checkpoint's qualifying combo set. The
+        # on-disk row values are then used for exact V3 training parity, including
+        # rounded-Sharpe tie behavior and generator rounding.
+        served_profile = prebuilt_profile
+        prebuilt_validated = True
+        source = 'dynamic_recalculation_validated'
+
+        for key, value in served_profile.items():
+            if key in nullable and not math.isfinite(float(value)):
+                continue
+            if not math.isfinite(float(value)):
+                raise PatternProfileUnavailable(
+                    'nonfinite_pattern_profile', {'feature': key})
 
         result = (
-            dynamic_profile,
+            served_profile,
             {
                 'source': source,
                 'prebuilt_validated': prebuilt_validated,
                 'qualifying_combo_count': len(dynamic_rows),
                 'prebuilt_combo_count': len(prebuilt_rows),
-                'profile_hash': self._profile_hash(dynamic_profile),
+                'profile_hash': self._profile_hash(served_profile),
+                'dynamic_profile_hash': self._profile_hash(dynamic_profile),
                 'data_as_of': str(price_df.index[-1])[:10],
                 'price_path': price_path,
-                'best_combo': aggregate_meta['best_combo'],
-                # Internal-only support for pat_concurrent_count; app.py omits it.
-                '_active_pairs': set(snapshot['active_pairs']),
+                'best_combo': prebuilt_aggregate_meta['best_combo'],
+                # Internal-only support for pat_concurrent_count; app.py omits
+                # these raw pairs from the public response.
+                '_active_pairs': snapshot['active_pairs'],
+                '_active_pairs_by_date': snapshot.get(
+                    'active_pairs_by_date', {date_str: snapshot['active_pairs']}),
+                'actual_entry_date': actual_entry.strftime('%Y-%m-%d'),
+                'concurrent_nominal_dates': list(concurrent_dates),
                 'nullable_features': sorted(
                     key for key in nullable
-                    if not math.isfinite(float(dynamic_profile[key]))),
+                    if not math.isfinite(float(served_profile[key]))),
             },
         )
-        self._recalculated_profile_cache[cache_key] = result
+        self._lru_put(
+            self._recalculated_profile_cache,
+            cache_key,
+            result,
+            CONTEXT_PROFILE_CACHE_MAX,
+        )
         return result
 
     def compute_pattern_features(self, symbol, date, daysOut, direction):
@@ -1985,14 +2322,23 @@ class FeatureEngine:
             year = pd.Timestamp.now().year
         end_year = year - 1
 
-        # Check cache (keyed by end_year)
+        path = os.path.join(CSV_DIR, 'INDX', 'SPX.csv')
+        source_version = None
+        if os.path.exists(path):
+            stat = os.stat(path)
+            source_version = (
+                path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+
+        # Check cache by both training cutoff and file generation. This keeps
+        # same-date EOD corrections aligned with the live metadata identity.
         if self._spx_seasonal_lookup is not None and isinstance(self._spx_seasonal_lookup, dict):
-            if self._spx_seasonal_lookup.get('_end_year') == end_year:
+            if (self._spx_seasonal_lookup.get('_end_year') == end_year
+                    and self._spx_seasonal_lookup.get('_source_version') == source_version):
                 return self._spx_seasonal_lookup
 
-        path = os.path.join(CSV_DIR, 'INDX', 'SPX.csv')
         if not os.path.exists(path):
-            self._spx_seasonal_lookup = {'_end_year': end_year}
+            self._spx_seasonal_lookup = {
+                '_end_year': end_year, '_source_version': source_version}
             return self._spx_seasonal_lookup
 
         df = pd.read_csv(path, index_col=0)
@@ -2001,7 +2347,8 @@ class FeatureEngine:
         df = df[(df.index.year >= 1960) & (df.index.year <= end_year)]
 
         if len(df) < 500:
-            self._spx_seasonal_lookup = {'_end_year': end_year}
+            self._spx_seasonal_lookup = {
+                '_end_year': end_year, '_source_version': source_version}
             return self._spx_seasonal_lookup
 
         closes = df['close'].values
@@ -2016,7 +2363,10 @@ class FeatureEngine:
         weeks = np.array([d.isocalendar()[1] for d in dates])
         pe_phases = np.array([get_pe_year(d.year) for d in dates])
 
-        lookup = {'_end_year': end_year}
+        lookup = {
+            '_end_year': end_year,
+            '_source_version': source_version,
+        }
         for wk in range(1, 54):
             for pe in range(1, 5):
                 mask = (weeks == wk) & (pe_phases == pe) & ~np.isnan(fwd_returns)
@@ -2041,7 +2391,7 @@ class FeatureEngine:
             date = pd.Timestamp(date)
 
         lookup = self._get_spx_seasonal_lookup(year=date.year)
-        if len(lookup) <= 1:  # only _end_year key
+        if len(lookup) <= 2:  # only internal cache metadata keys
             features['mkt_spx_seasonal_wr'] = np.nan
             features['mkt_spx_seasonal_ret'] = np.nan
             features['mkt_spx_seasonal_regime'] = np.nan
@@ -2211,9 +2561,11 @@ class FeatureEngine:
 
         pat = dict(profile)
         pat['pat_daysOut'] = int(daysOut)
-        active_pairs = set(profile_meta.get('_active_pairs', set()))
-        active_pairs.add((int(daysOut), dir_char))
-        pat['pat_concurrent_count'] = float(len(active_pairs))
+        active_pairs_by_date = profile_meta.get('_active_pairs_by_date') or {
+            str(date)[:10]: set(profile_meta.get('_active_pairs', set()))
+        }
+        pat['pat_concurrent_count'] = self._context_concurrent_count(
+            active_pairs_by_date, int(daysOut))
 
         neighborhood = self._compute_neighborhood_features(
             symbol, date, int(daysOut), dir_char, price_df)

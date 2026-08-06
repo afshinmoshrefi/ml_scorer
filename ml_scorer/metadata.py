@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import time
 from functools import lru_cache
 
 try:
@@ -12,6 +13,7 @@ try:
         CSV_DIR,
         FEATURE_COLS,
         FEATURE_SCHEMA_VERSION,
+        ETF_CSV_DIR,
         INDX_CSV_DIR,
         MODEL_DIR,
         MODEL_RELEASE,
@@ -27,6 +29,7 @@ except ImportError:
         CSV_DIR,
         FEATURE_COLS,
         FEATURE_SCHEMA_VERSION,
+        ETF_CSV_DIR,
         INDX_CSV_DIR,
         MODEL_DIR,
         MODEL_RELEASE,
@@ -34,6 +37,36 @@ except ImportError:
         TIERS,
     )
     from context_contract import sha256_json
+
+
+_PROCESS_DATA_GENERATION = hashlib.sha256(
+    f'{os.getpid()}:{time.time_ns()}'.encode('utf-8')
+).hexdigest()
+
+
+def _required_context_sources():
+    """Every shared price series read by the 62-feature serving path."""
+    etfs = (
+        'SPY', 'HYG', 'LQD', 'XLK', 'XLU', 'XLF', 'XLE', 'XLV', 'XLY',
+        'XLC', 'XLI', 'XLP', 'XLRE', 'XLB', 'TLT',
+    )
+    indices = (
+        'VIX', 'VIX3M', 'US10Y', 'US2Y', 'ADVN', 'DECN', 'IRX', 'DXY', 'SPX',
+    )
+    commodities = ('CL', 'GC')
+    records = [
+        (f'ETF/{symbol}', os.path.join(ETF_CSV_DIR, f'{symbol}.csv'))
+        for symbol in etfs
+    ]
+    records.extend(
+        (f'INDX/{symbol}', os.path.join(INDX_CSV_DIR, f'{symbol}.csv'))
+        for symbol in indices
+    )
+    records.extend(
+        (f'COMM/{symbol}', os.path.join(COMM_CSV_DIR, f'{symbol}.csv'))
+        for symbol in commodities
+    )
+    return records
 
 
 def _sha256_file(path):
@@ -127,26 +160,65 @@ def _tail_date(path):
     return None
 
 
-def global_data_as_of():
-    """Return the latest common date across the daily V3 market context.
+def context_data_manifest():
+    """Return a live completeness and generation fingerprint for V3 inputs.
 
-    This deliberately is not process-lifetime cached.  EOD files are replaced
-    while the service stays up, and stale metadata would poison downstream
-    cache identity.  Five tail-line reads are cheap enough for health/context.
+    ``ctime_ns`` intentionally participates in the identity so a same-date
+    correction still invalidates downstream caches even when a copy preserves
+    file mtime and byte size. The process generation adds a final safe boundary
+    around the scorer's authoritative nightly restart.
     """
-    paths = [
-        os.path.join(CSV_DIR, 'ETF', 'SPY.csv'),
-        os.path.join(INDX_CSV_DIR, 'VIX.csv'),
-        os.path.join(INDX_CSV_DIR, 'DXY.csv'),
-        os.path.join(COMM_CSV_DIR, 'CL.csv'),
-        os.path.join(COMM_CSV_DIR, 'GC.csv'),
-    ]
-    dates = [value for value in (_tail_date(path) for path in paths) if value]
-    return min(dates) if dates else None
+    sources = []
+    missing = []
+    dates = []
+    for name, path in _required_context_sources():
+        present = os.path.isfile(path)
+        record = {'name': name, 'present': present}
+        if present:
+            stat = os.stat(path)
+            tail_date = _tail_date(path)
+            record.update({
+                'bytes': stat.st_size,
+                'mtime_ns': stat.st_mtime_ns,
+                'ctime_ns': stat.st_ctime_ns,
+                'tail_date': tail_date,
+            })
+            if tail_date:
+                dates.append(tail_date)
+            else:
+                missing.append(name)
+        else:
+            record.update({
+                'bytes': None,
+                'mtime_ns': None,
+                'ctime_ns': None,
+                'tail_date': None,
+            })
+            missing.append(name)
+        sources.append(record)
+    complete = not missing
+    source_manifest_hash = sha256_json(sources)
+    return {
+        'complete': complete,
+        'missing_sources': missing,
+        'data_as_of': min(dates) if complete and dates else None,
+        'source_count': len(sources),
+        'source_manifest_hash': source_manifest_hash,
+        'data_generation_hash': sha256_json({
+            'source_manifest_hash': source_manifest_hash,
+            'process_generation': _PROCESS_DATA_GENERATION,
+        }),
+    }
+
+
+def global_data_as_of():
+    """Return the latest common date only when every declared input is present."""
+    return context_data_manifest()['data_as_of']
 
 
 def service_metadata():
     manifest = model_manifest()
+    data_manifest = context_data_manifest()
     return {
         'model_release': MODEL_RELEASE,
         'feature_schema_version': FEATURE_SCHEMA_VERSION,
@@ -154,5 +226,10 @@ def service_metadata():
         'context_schema_version': CONTEXT_SCHEMA_VERSION,
         'pattern_profile_schema_version': PATTERN_PROFILE_SCHEMA_VERSION,
         'model_manifest_hash': manifest['manifest_hash'],
-        'data_as_of': global_data_as_of(),
+        'data_as_of': data_manifest['data_as_of'],
+        'data_generation_hash': data_manifest['data_generation_hash'],
+        'data_source_manifest_hash': data_manifest['source_manifest_hash'],
+        'context_data_complete': data_manifest['complete'],
+        'context_data_source_count': data_manifest['source_count'],
+        'missing_context_data_sources': data_manifest['missing_sources'],
     }

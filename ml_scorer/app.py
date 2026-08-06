@@ -23,7 +23,7 @@ import math
 from flask import Flask, request, jsonify
 
 try:
-    from .config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, tier_for_days_out
+    from .config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, CONTEXT_MAX_BATCH_ITEMS, CONTEXT_MAX_BATCH_IDENTITIES, PATTERN_PROFILE_SCHEMA_VERSION, tier_for_days_out
     from .scorer import ScorerManager
     from .feature_engine import FeatureEngine, PatternProfileUnavailable
     from .daily_opp_selection import select_daily_opps
@@ -33,7 +33,7 @@ try:
     )
     from .metadata import model_manifest, service_metadata
 except ImportError:
-    from config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, tier_for_days_out
+    from config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, CONTEXT_MAX_BATCH_ITEMS, CONTEXT_MAX_BATCH_IDENTITIES, PATTERN_PROFILE_SCHEMA_VERSION, tier_for_days_out
     from scorer import ScorerManager
     from feature_engine import FeatureEngine, PatternProfileUnavailable
     from daily_opp_selection import select_daily_opps
@@ -266,6 +266,9 @@ def score():
     return jsonify({
         'results': results,
         'tiers_used': sorted(tiers_used),
+        # Additive provenance for generation-safe downstream caches. Existing
+        # /score clients can continue reading results/tiers_used unchanged.
+        'metadata': service_metadata(),
         'elapsed_ms': round(elapsed, 1),
     })
 
@@ -290,9 +293,21 @@ def _public_profile_metadata(profile_meta):
     }
 
 
+def _feature_vector_hash(features):
+    """Hash the ordered, model-consumed vector with trained missingness intact."""
+    ordered = []
+    for name in FEATURE_COLS:
+        value = float(features[name])
+        ordered.append([name, None if not math.isfinite(value) else value])
+    return sha256_json({
+        'pattern_profile_schema': PATTERN_PROFILE_SCHEMA_VERSION,
+        'features': ordered,
+    })
+
+
 @app.route('/score/context', methods=['POST'])
 def score_context():
-    """Score 30/60/90-day checkpoints after exact pattern recalculation.
+    """Score 30/60/90-day contexts after recurrence and profile recalculation.
 
     This endpoint is additive.  The legacy POST /score request and response
     contract above is intentionally unchanged.
@@ -323,10 +338,31 @@ def score_context():
             'message': 'opportunities must be a nonempty list',
             'retryable': False,
         }}), 400
-    if len(opportunities) > 100:
+    if len(opportunities) > CONTEXT_MAX_BATCH_ITEMS:
         return jsonify({'error': {
             'code': 'batch_too_large',
-            'message': 'at most 100 opportunities may be scored per request',
+            'message': f'at most {CONTEXT_MAX_BATCH_ITEMS} opportunities may be scored per request',
+            'retryable': False,
+        }}), 400
+
+    distinct_identities = set()
+    for raw_item in opportunities:
+        try:
+            identity_item = validate_context_opportunity(raw_item)
+        except ContextValidationError:
+            continue
+        distinct_identities.add((
+            identity_item['resource_id'],
+            identity_item['symbol'],
+            identity_item['date'],
+        ))
+    if len(distinct_identities) > CONTEXT_MAX_BATCH_IDENTITIES:
+        return jsonify({'error': {
+            'code': 'too_many_context_identities',
+            'message': (
+                f'at most {CONTEXT_MAX_BATCH_IDENTITIES} distinct '
+                'resource/symbol/date contexts may be scored per request'
+            ),
             'retryable': False,
         }}), 400
 
@@ -354,6 +390,31 @@ def score_context():
         tiers_used.add(tier_name)
 
         try:
+            selected_recurrence = engine.compute_selected_recurrence_summary(
+                item['resource_id'], item['symbol'], item['date'],
+                item['daysOut'], item['direction'], item['years'], item['partial'])
+            selected_status = selected_recurrence.get('status')
+            if selected_status == 'below_threshold':
+                below = dict(item)
+                below.update({
+                    'status': 'below_threshold',
+                    'pattern_recalculated': True,
+                    'selected_recurrence': selected_recurrence,
+                    'context_hash': sha256_json({
+                        'request': item,
+                        'selected_recurrence': selected_recurrence,
+                        'model_release': metadata_payload['model_release'],
+                        'context_schema_version': metadata_payload['context_schema_version'],
+                    }),
+                })
+                results.append(below)
+                continue
+            if selected_status == 'insufficient_history':
+                raise PatternProfileUnavailable(
+                    'selected_recurrence_insufficient_history',
+                    selected_recurrence,
+                )
+
             features, profile_meta = engine.compute_recalculated_features(
                 item['resource_id'], item['symbol'], item['date'],
                 item['daysOut'], item['direction'])
@@ -364,6 +425,8 @@ def score_context():
                     'incomplete_feature_vector',
                     {'missing_features': missing_features},
                 )
+
+            feature_vector_hash = _feature_vector_hash(features)
 
             vix = features.get('mkt_vix_level')
             if vix is not None and math.isfinite(float(vix)) and vix > VIX_CUTOFF:
@@ -398,6 +461,8 @@ def score_context():
                 'data_as_of': profile_meta['data_as_of'],
                 'market_data_as_of': metadata_payload['data_as_of'],
                 'profile_hash': profile_meta['profile_hash'],
+                'feature_vector_hash': feature_vector_hash,
+                'pattern_profile_schema_version': PATTERN_PROFILE_SCHEMA_VERSION,
             }
             result = dict(item)
             result.update(scores)
@@ -405,6 +470,8 @@ def score_context():
                 'status': 'ok',
                 'pattern_recalculated': True,
                 'pattern_profile': public_profile,
+                'selected_recurrence': selected_recurrence,
+                'feature_vector_hash': feature_vector_hash,
                 'context_hash': sha256_json(context_identity),
             })
             results.append(result)

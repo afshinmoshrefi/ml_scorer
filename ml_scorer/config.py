@@ -22,12 +22,26 @@ CALIBRATION_DIR = os.path.join(PACKAGE_DIR, 'calibration')
 HOST = os.environ.get('ML_SCORER_HOST', '0.0.0.0')
 PORT = int(os.environ.get('ML_SCORER_PORT', 5090))
 
+# POST /score/context keeps only a bounded hot working set in process. Redis on
+# TradeWave is the durable daily cache, so retaining every warmed symbol here
+# would waste memory and eventually pressure the single scorer worker.
+CONTEXT_TARGET_CACHE_MAX = max(1, int(os.environ.get(
+    'ML_SCORER_CONTEXT_TARGET_CACHE_MAX', '64')))
+CONTEXT_SNAPSHOT_CACHE_MAX = max(1, int(os.environ.get(
+    'ML_SCORER_CONTEXT_SNAPSHOT_CACHE_MAX', '64')))
+CONTEXT_PROFILE_CACHE_MAX = max(3, int(os.environ.get(
+    'ML_SCORER_CONTEXT_PROFILE_CACHE_MAX', '384')))
+CONTEXT_MAX_BATCH_ITEMS = max(1, int(os.environ.get(
+    'ML_SCORER_CONTEXT_MAX_BATCH_ITEMS', '60')))
+CONTEXT_MAX_BATCH_IDENTITIES = max(1, int(os.environ.get(
+    'ML_SCORER_CONTEXT_MAX_BATCH_IDENTITIES', '15')))
+
 # Versioned serving contract.  The model filenames still carry the historical
 # ``v2_`` prefix, but the deployed 22_sage release consumes the 62-feature V3
 # schema below.
 MODEL_RELEASE = 'v3-22sage-20260802-03'
 FEATURE_SCHEMA_VERSION = 'v3-62'
-CONTEXT_SCHEMA_VERSION = 'recalculated-pattern-context-v1'
+CONTEXT_SCHEMA_VERSION = 'duration-comparison-context-v2'
 PATTERN_PROFILE_SCHEMA_VERSION = 'all-qualifying-combos-v1'
 
 # The opportunity generator uses a 4% annual hurdle when it builds each

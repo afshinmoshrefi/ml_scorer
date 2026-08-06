@@ -91,11 +91,16 @@ Self-contained Flask app. Deploy by copying the `ml_scorer/` folder.
 
 **Endpoints:**
 - `POST /score` -- Score one or batch of opportunities. Input: symbol, date, daysOut, direction, tier (optional). Output: pred_return, pred_mfe, win_prob, p_hit_return, p_hit_mfe, ml_score (0-100), tier.
-- `POST /score/context` -- Additive US stock/ETF 30/60/90 inclusive-calendar-day checkpoint scoring. Rebuilds the model-faithful all-combo pattern profile, derives raw daysOut/tier, and preserves caller years/partial values only as provenance.
+- `POST /score/context` -- Additive US stock/ETF 30/60/90 inclusive-calendar-day duration scoring. Rebuilds the model-faithful all-combo pattern profile, derives raw daysOut/tier, and independently recalculates the caller's string `years`/recurrence selection as an eligibility gate and explanation.
 - `POST /select` -- Find and score today's best opportunities from nightly parquet cache.
 - `GET /health` -- Service health check
-- `GET /metadata` -- Model/schema/data versions and SHA-256 artifact manifest
+- `GET /metadata` -- Model/schema/data versions, complete 26-series shared-data
+  generation/completeness identity, and SHA-256 artifact manifest
 - `GET /tiers` -- List loaded tiers
+
+After any same-day correction to a target-security CSV or opportunity file,
+restart `ml_scorer` before downstream warming or scoring. The restart advances
+the process data-generation identity used by TradeWave's versioned Redis cache.
 
 **Deployment:**
 ```bash
