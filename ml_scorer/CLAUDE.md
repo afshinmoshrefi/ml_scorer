@@ -23,6 +23,7 @@ ml_scorer/
   daily_opp_selection.py    # /select pipeline: parquet load, pre-filter, score, rank
   opp_to_parquet.py         # Nightly: build ml_cache_YYYY-MM-DD.parquet per market
   nightly.sh                # Cron script: runs opp_to_parquet.py for all markets
+  sync_dev_data.sh          # DEV-only marker-gated price-data sync from TradeWave
   warmup_cache.py           # Warms up price data cache after service restart
   requirements.txt          # pip install -r requirements.txt
   CLAUDE.md                 # This file
@@ -61,6 +62,7 @@ systemctl restart ml_scorer
 | `ML_SCORER_CONTEXT_PROFILE_CACHE_MAX` | No | `384` | Recalculated checkpoint profiles retained by `/score/context` |
 | `ML_SCORER_CONTEXT_MAX_BATCH_ITEMS` | No | `60` | Maximum checkpoint items in one request |
 | `ML_SCORER_CONTEXT_MAX_BATCH_IDENTITIES` | No | `15` | Maximum distinct resource/symbol/date identities in one request |
+| `ML_SCORER_DEV_DATA_SOURCE` | DEV sync only | none | Must be `root@192.168.1.176`; enables the marker-gated standalone-scorer data pull |
 
 ### Production Server
 
@@ -288,6 +290,28 @@ Target, combo, market, commodity, and SPX seasonal caches include file ctime in
 their source version. This detects same-date file corrections even when mtime
 and file size were preserved. TradeWave Redis remains the durable daily cache;
 the scorer process caches only the bounded hot working set.
+
+### Standalone DEV scorer data freshness
+
+The standalone V3 development scorer does not share a filesystem with the
+TradeWave development app box. `sync_dev_data.sh` is the dev-only bridge used
+before TradeWave's nightly AI-score prefetch window. It first downloads and
+cryptographically validates the app box's authoritative EOD readiness marker
+with that release's own validator. Only then does it incrementally rsync the
+US, ETF, index, and commodity CSV directories, without deletion. It verifies
+all 26 shared V3 inputs against the completed US session, proves the marker did
+not change during transfer, restarts the scorer to clear process caches, and
+records the completed generation under `/var/lib/ml_scorer/`.
+
+The dev root cron retries at 03:40, 04:40, and 05:40 UTC Tuesday-Saturday:
+
+```cron
+40 3-5 * * 2-6 ML_SCORER_DEV_DATA_SOURCE=root@192.168.1.176 /usr/bin/flock -n /run/lock/ml-scorer-dev-data-sync-cron.lock /home/flask/ml_scorer/sync_dev_data.sh >> /var/log/ml_scorer_data_sync.log 2>&1
+```
+
+A missing, stale, incomplete, or changing marker is a successful deferred
+no-op. The script never fabricates readiness and never weakens TradeWave's
+requirement that scorer `data_as_of` exactly match the completed US session.
 
 **Correction rule:** restart `ml_scorer` after any same-day correction to a
 target security CSV or opportunity-definition file, before allowing TradeWave
