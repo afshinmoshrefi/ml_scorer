@@ -156,7 +156,7 @@ Score one or multiple opportunities. `tier` is optional -- auto-detected from `d
 Additive TradeWave duration-comparison endpoint. Legacy `POST /score` remains unchanged.
 This endpoint recalculates the pattern's full V3 all-qualifying-combo profile
 at one exact inclusive calendar window before scoring it. Its context contract is
-`duration-comparison-context-v2`.
+`duration-comparison-context-v3`.
 
 ```json
 {
@@ -175,8 +175,8 @@ service derives raw `daysOut` as 29, 59, or 89 and derives the model tier. A
 caller-supplied `daysOut` or tier is rejected. `years` and `partial` are
 preserved in cache identity and used to recalculate the selected consecutive- or
 PE-cycle cohort at that duration. V3 was trained on the full all-combo profile,
-not on a user-selected years cohort, so the selected cohort gates inference and
-explains eligibility but does not replace learned feature values.
+not on a user-selected years cohort, so the selected cohort is explanatory
+evidence and does not replace or gate the learned feature values.
 
 Only TradeWave US stock/ETF resources `0`, `1`, `2`, `3`, `4`, and `11` are
 accepted. DXY, crude `CL`, and gold `GC` remain internal regime inputs. The
@@ -192,13 +192,12 @@ returns a structured `pattern_profile_unavailable` item instead of a fabricated
 or selected-cohort feature vector.
 
 Before model inference, the scorer recomputes the requested cohort's completed
-direction-adjusted observations. If positive observations are below the selected
-requirement, it returns `status=below_threshold`, a `selected_recurrence` summary
-with `positive_years`, `sample_size`, `required_positive_years`, and historical
-return context, and no prediction fields. Too little completed history returns
-`selected_recurrence_insufficient_history`. Neither state is numeric zero. A
-qualified item proceeds through the unchanged 62-feature V3 ensemble and includes
-the same selected-recurrence evidence beside its predictions.
+direction-adjusted observations. Every item with a valid all-combo V3 profile
+proceeds through the unchanged 62-feature ensemble. Its `selected_recurrence`
+summary separately reports `qualified`, `below_threshold`, or
+`insufficient_history` with the available sample evidence. A failed table-screen
+recurrence therefore remains visible beside the model reading but does not erase
+it or become numeric zero.
 
 Batch input uses `{"opportunities": [...]}`. A request can contain at most 60
 items and 15 distinct resource/symbol/date identities. Responses use the normal

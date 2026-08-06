@@ -393,7 +393,7 @@ class RecalculationUnitTests(unittest.TestCase):
         self.assertEqual(
             [key[3] for key in engine._recalculated_profile_cache], [59, 89])
 
-    def test_recalculation_rejects_unvalidated_prebuilt_model_values(self):
+    def test_recalculation_accepts_bounded_authoritative_mfe_difference(self):
         engine = FeatureEngine()
         price_frame = pd.DataFrame(
             {'close': [100.0, 101.0]},
@@ -410,9 +410,61 @@ class RecalculationUnitTests(unittest.TestCase):
             'median_profit': 2.0,
             'avg_profit2': 3.0,
         }
-        prebuilt_row = dict(dynamic_row, avg_profit2=3.25)
+        prebuilt_row = dict(
+            dynamic_row,
+            sharpe_ratio=1.01,
+            avg_profit2=3.1,
+        )
         snapshot = {
             'rows': {'10_8': {(29, 'l'): prebuilt_row}},
+            'active_pairs': {(29, 'l')},
+        }
+        with (
+            mock.patch.object(
+                engine, '_prepare_context_target',
+                return_value=(
+                    price_frame, '/prices/AAPL.csv', '/opps/AAPL',
+                    ('/prices/AAPL.csv', 1, 1, 100),
+                ),
+            ),
+            mock.patch.object(engine, '_combo_definitions', return_value=definitions),
+            mock.patch.object(
+                engine, '_compute_historical_observation', return_value={}),
+            mock.patch.object(
+                engine, '_combo_row_from_observations', return_value=dynamic_row),
+            mock.patch.object(
+                engine, '_context_opp_snapshot', return_value=snapshot),
+        ):
+            profile, metadata = engine.compute_recalculated_pattern_profile(
+                '2', 'AAPL', '2026-08-05', 29, 'l')
+
+        self.assertEqual(profile['pat_avg_profit2'], 3.1)
+        self.assertEqual(profile['pat_sharpe_ratio'], 1.01)
+        self.assertEqual(metadata['profile_validation'], 'bounded_authoritative')
+        self.assertEqual(metadata['reconciled_model_fields'], [
+            'pat_sharpe_ratio',
+            'pat_avg_profit2',
+        ])
+
+    def test_recalculation_rejects_material_or_structural_profile_mismatch(self):
+        engine = FeatureEngine()
+        price_frame = pd.DataFrame(
+            {'close': [100.0, 101.0]},
+            index=pd.to_datetime(['2000-01-03', '2026-08-04']),
+        )
+        definitions = [{
+            'name': '10_8', 'year1': 10, 'year2': 8, 'is_pe': False,
+            'path': '/opps/10_8.csv.gz', 'mtime_ns': 1, 'ctime_ns': 1,
+            'bytes': 100,
+        }]
+        dynamic_row = {
+            'sharpe_ratio': 1.0,
+            'avg_profit': 2.0,
+            'median_profit': 2.0,
+            'avg_profit2': 3.0,
+        }
+        snapshot = {
+            'rows': {'10_8': {(29, 'l'): dict(dynamic_row, avg_profit2=4.0)}},
             'active_pairs': {(29, 'l')},
         }
         with (
@@ -438,6 +490,10 @@ class RecalculationUnitTests(unittest.TestCase):
         self.assertEqual(caught.exception.reason, 'prebuilt_profile_mismatch')
         self.assertTrue(caught.exception.details['qualifying_sets_match'])
         self.assertFalse(caught.exception.details['model_values_match'])
+        self.assertEqual(
+            caught.exception.details['mismatched_model_fields'],
+            ['pat_avg_profit2'],
+        )
 
         mismatch_engine = FeatureEngine()
         with (
@@ -758,7 +814,7 @@ class ContextEndpointTests(unittest.TestCase):
         self.assertEqual(item['selected_recurrence']['sample_size'], 10)
         self.assertEqual(body['metadata']['feature_schema_version'], 'v3-62')
 
-    def test_below_threshold_is_explanatory_and_skips_model_prediction(self):
+    def test_below_threshold_is_explanatory_and_does_not_gate_prediction(self):
         class BelowThresholdEngine:
             def compute_selected_recurrence_summary(self, *args):
                 return {
@@ -776,7 +832,21 @@ class ContextEndpointTests(unittest.TestCase):
                 }
 
             def compute_recalculated_features(self, *args):
-                raise AssertionError('below-threshold checkpoints must not be scored')
+                features = {name: 0.0 for name in FEATURE_COLS}
+                features['mkt_vix_level'] = 20.0
+                return features, {
+                    'source': 'dynamic_raw_prices',
+                    'prebuilt_validated': True,
+                    'profile_validation': 'exact',
+                    'reconciled_model_fields': [],
+                    'qualifying_combo_count': 3,
+                    'prebuilt_combo_count': 3,
+                    'profile_hash': 'd' * 64,
+                    'data_as_of': '2026-08-04',
+                    'best_combo': '10_8',
+                    'nullable_features': [],
+                    '_active_pairs': {(29, 'l')},
+                }
 
         self.app_module.engine = BelowThresholdEngine()
         response = self.client.post('/score/context', json={
@@ -787,12 +857,62 @@ class ContextEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         item = response.get_json()['results'][0]
-        self.assertEqual(item['status'], 'below_threshold')
+        self.assertEqual(item['status'], 'ok')
         self.assertTrue(item['pattern_recalculated'])
         self.assertEqual(item['selected_recurrence']['positive_years'], 6)
         self.assertEqual(item['selected_recurrence']['required_positive_years'], 9)
-        self.assertNotIn('ml_score', item)
+        self.assertEqual(item['ml_score'], 80.0)
         self.assertEqual(len(item['context_hash']), 64)
+
+    def test_incomplete_selected_recurrence_does_not_gate_valid_v3_profile(self):
+        class IncompleteRecurrenceEngine:
+            def compute_selected_recurrence_summary(self, *args):
+                return {
+                    'status': 'insufficient_history',
+                    'mode': 'consecutive',
+                    'years': '10',
+                    'requested_observations': 10,
+                    'sample_size': 7,
+                    'positive_years': 6,
+                    'required_positive_years': 9,
+                    'win_rate': round(6 / 7, 6),
+                    'average_return_pct': 0.4,
+                    'complete': False,
+                    'data_as_of': '2026-08-04',
+                }
+
+            def compute_recalculated_features(self, *args):
+                features = {name: 0.0 for name in FEATURE_COLS}
+                features['mkt_vix_level'] = 20.0
+                return features, {
+                    'source': 'dynamic_raw_prices',
+                    'prebuilt_validated': True,
+                    'profile_validation': 'exact',
+                    'reconciled_model_fields': [],
+                    'qualifying_combo_count': 3,
+                    'prebuilt_combo_count': 3,
+                    'profile_hash': 'e' * 64,
+                    'data_as_of': '2026-08-04',
+                    'best_combo': '10_8',
+                    'nullable_features': [],
+                    '_active_pairs': {(29, 'l')},
+                }
+
+        self.app_module.engine = IncompleteRecurrenceEngine()
+        response = self.client.post('/score/context', json={
+            'resource_id': '2', 'symbol': 'AAPL', 'date': '2026-08-05',
+            'calendar_days': 30, 'direction': 'l', 'years': '10',
+            'partial': {'selection': {'min_winning_years': '9'}},
+        })
+
+        self.assertEqual(response.status_code, 200)
+        item = response.get_json()['results'][0]
+        self.assertEqual(item['status'], 'ok')
+        self.assertEqual(item['ml_score'], 80.0)
+        self.assertEqual(
+            item['selected_recurrence']['status'],
+            'insufficient_history',
+        )
 
     def test_legacy_score_response_adds_metadata_without_changing_result_shape(self):
         class LegacyEngine:

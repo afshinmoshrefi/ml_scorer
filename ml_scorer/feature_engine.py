@@ -74,6 +74,18 @@ _V3_AGGREGATE_PROFILE_KEYS = (
     'pat_deepest_pass_capped30', 'pat_consistency_std', 'pat_daysOut',
 )
 
+# Opportunity rows are the authoritative inputs used to train V3.  The raw-price
+# rebuild must independently reproduce the qualifying combo set and the consumed
+# aggregate profile before those rows can be served.  Two upstream, two-decimal
+# statistics can differ slightly after later OHLC corrections: Sharpe at the last
+# displayed decimal, and favorable excursion because it depends on intrawindow
+# highs/lows.  Keep those reconciliations tightly bounded instead of rejecting a
+# model-faithful prebuilt profile or accepting an arbitrary mismatch.
+_V3_PROFILE_VALIDATION_TOLERANCES = {
+    'pat_sharpe_ratio': (0.011, 0.01),
+    'pat_avg_profit2': (0.011, 0.05),
+}
+
 _PINNED_PRICE_SYMBOLS = frozenset({
     'SPY', 'HYG', 'LQD', 'XLK', 'XLU', 'XLF', 'XLE', 'XLV', 'XLY',
     'XLC', 'XLI', 'XLP', 'XLRE', 'XLB', 'VIX', 'VIX3M', 'US10Y',
@@ -825,9 +837,10 @@ class FeatureEngine:
                                             days_out, direction, years, partial):
         """Recalculate the caller-selected historical cohort at one horizon.
 
-        This summary is an eligibility gate and an explanation, not a new V3
-        feature definition.  V3 still consumes its trained all-combo profile
-        only after the selected cohort meets its original recurrence rule.
+        This summary is explanatory screen evidence, not a new V3 feature
+        definition or an inference gate. V3 consumes its trained all-combo
+        profile whenever that profile can be validated, whether or not the
+        selected cohort still meets its original recurrence rule.
         """
         if isinstance(date, str):
             date = pd.Timestamp(date)
@@ -1049,10 +1062,15 @@ class FeatureEngine:
         }
 
     @staticmethod
-    def _profile_values_equal(left, right, keys=None, tolerance=1e-10):
+    def _profile_value_differences(left, right, keys=None, tolerance=1e-10,
+                                   tolerances=None):
         keys = tuple(keys) if keys is not None else tuple(left)
         if any(key not in left or key not in right for key in keys):
-            return False
+            return [
+                key for key in keys if key not in left or key not in right
+            ]
+        differences = []
+        tolerance_by_key = tolerances or {}
         for key in keys:
             a = left[key]
             b = right[key]
@@ -1062,10 +1080,28 @@ class FeatureEngine:
             except TypeError:
                 pass
             if not (math.isfinite(float(a)) and math.isfinite(float(b))):
-                return False
-            if abs(float(a) - float(b)) > tolerance:
-                return False
-        return True
+                differences.append(key)
+                continue
+            absolute_tolerance, relative_tolerance = tolerance_by_key.get(
+                key, (tolerance, 0.0))
+            allowed = max(
+                float(absolute_tolerance),
+                float(relative_tolerance) * max(abs(float(a)), abs(float(b))),
+            )
+            if abs(float(a) - float(b)) > allowed:
+                differences.append(key)
+        return differences
+
+    @classmethod
+    def _profile_values_equal(cls, left, right, keys=None, tolerance=1e-10,
+                              tolerances=None):
+        return not cls._profile_value_differences(
+            left,
+            right,
+            keys=keys,
+            tolerance=tolerance,
+            tolerances=tolerances,
+        )
 
     @staticmethod
     def _profile_hash(profile):
@@ -1172,13 +1208,24 @@ class FeatureEngine:
         prebuilt_profile, prebuilt_aggregate_meta = self._aggregate_pattern_profile(
             prebuilt_rows, definitions, data_years, dir_char, int(days_out))
         qualifying_sets_match = set(prebuilt_rows) == set(dynamic_rows)
-        values_match = (
-            prebuilt_profile is not None
-            and self._profile_values_equal(
-                prebuilt_profile, dynamic_profile,
+        strict_differences = (
+            self._profile_value_differences(
+                prebuilt_profile,
+                dynamic_profile,
                 keys=_V3_AGGREGATE_PROFILE_KEYS,
             )
+            if prebuilt_profile is not None else list(_V3_AGGREGATE_PROFILE_KEYS)
         )
+        model_differences = (
+            self._profile_value_differences(
+                prebuilt_profile,
+                dynamic_profile,
+                keys=_V3_AGGREGATE_PROFILE_KEYS,
+                tolerances=_V3_PROFILE_VALIDATION_TOLERANCES,
+            )
+            if prebuilt_profile is not None else list(_V3_AGGREGATE_PROFILE_KEYS)
+        )
+        values_match = not model_differences
         if not qualifying_sets_match or prebuilt_profile is None or not values_match:
             raise PatternProfileUnavailable(
                 'prebuilt_profile_mismatch',
@@ -1187,6 +1234,7 @@ class FeatureEngine:
                     'prebuilt_combo_count': len(prebuilt_rows),
                     'qualifying_sets_match': qualifying_sets_match,
                     'model_values_match': values_match,
+                    'mismatched_model_fields': model_differences,
                 },
             )
         # The dynamic rebuild proves the checkpoint's qualifying combo set. The
@@ -1208,6 +1256,10 @@ class FeatureEngine:
             {
                 'source': source,
                 'prebuilt_validated': prebuilt_validated,
+                'profile_validation': (
+                    'bounded_authoritative' if strict_differences else 'exact'
+                ),
+                'reconciled_model_fields': strict_differences,
                 'qualifying_combo_count': len(dynamic_rows),
                 'prebuilt_combo_count': len(prebuilt_rows),
                 'profile_hash': self._profile_hash(served_profile),

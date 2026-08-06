@@ -307,7 +307,7 @@ def _feature_vector_hash(features):
 
 @app.route('/score/context', methods=['POST'])
 def score_context():
-    """Score 30/60/90-day contexts after recurrence and profile recalculation.
+    """Score 30/60/90-day contexts with recalculated profile and recurrence evidence.
 
     This endpoint is additive.  The legacy POST /score request and response
     contract above is intentionally unchanged.
@@ -393,28 +393,6 @@ def score_context():
             selected_recurrence = engine.compute_selected_recurrence_summary(
                 item['resource_id'], item['symbol'], item['date'],
                 item['daysOut'], item['direction'], item['years'], item['partial'])
-            selected_status = selected_recurrence.get('status')
-            if selected_status == 'below_threshold':
-                below = dict(item)
-                below.update({
-                    'status': 'below_threshold',
-                    'pattern_recalculated': True,
-                    'selected_recurrence': selected_recurrence,
-                    'context_hash': sha256_json({
-                        'request': item,
-                        'selected_recurrence': selected_recurrence,
-                        'model_release': metadata_payload['model_release'],
-                        'context_schema_version': metadata_payload['context_schema_version'],
-                    }),
-                })
-                results.append(below)
-                continue
-            if selected_status == 'insufficient_history':
-                raise PatternProfileUnavailable(
-                    'selected_recurrence_insufficient_history',
-                    selected_recurrence,
-                )
-
             features, profile_meta = engine.compute_recalculated_features(
                 item['resource_id'], item['symbol'], item['date'],
                 item['daysOut'], item['direction'])

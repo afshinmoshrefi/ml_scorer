@@ -41,7 +41,7 @@ CONTEXT_MAX_BATCH_IDENTITIES = max(1, int(os.environ.get(
 # schema below.
 MODEL_RELEASE = 'v3-22sage-20260802-03'
 FEATURE_SCHEMA_VERSION = 'v3-62'
-CONTEXT_SCHEMA_VERSION = 'duration-comparison-context-v2'
+CONTEXT_SCHEMA_VERSION = 'duration-comparison-context-v3'
 PATTERN_PROFILE_SCHEMA_VERSION = 'all-qualifying-combos-v1'
 
 # The opportunity generator uses a 4% annual hurdle when it builds each
