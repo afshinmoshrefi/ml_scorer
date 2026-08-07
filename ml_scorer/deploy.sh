@@ -196,13 +196,16 @@ case "$MODE" in
     require_root
     target=${2:-$(resolve_release "$PREVIOUS_LINK")}
     validate_release_path "$target"
+    validate_route_map "$target"
     current=$(resolve_release "$ACTIVE_LINK")
     activate_link "$target"
-    systemctl restart "$SERVICE"
-    if ! wait_for_health || ! validate_live_contract; then
+    if ! systemctl restart "$SERVICE" \
+      || ! wait_for_health \
+      || ! validate_live_contract; then
       if [ -n "$current" ] && [ -d "$current" ]; then
         activate_link "$current"
-        systemctl restart "$SERVICE"
+        systemctl restart "$SERVICE" || true
+        wait_for_health || true
       fi
       fail "rollback target failed validation: $target"
     fi
@@ -233,13 +236,16 @@ case "$MODE" in
       git -C "$REPO_ROOT" cat-file -e "$sha:$path" || fail "commit omits required file: $path"
     done
 
-    artifact_source=${ML_SCORER_ARTIFACT_SOURCE:-$(resolve_release "$ACTIVE_LINK")}
+    artifact_source=${ML_SCORER_ARTIFACT_SOURCE:-}
+    [ -n "$artifact_source" ] || fail 'ML_SCORER_ARTIFACT_SOURCE must name a verified release'
     validate_release_path "$artifact_source"
     [ -d "$artifact_source/models" ] || fail "artifact source has no models: $artifact_source"
     [ -d "$artifact_source/calibration" ] || fail "artifact source has no calibration: $artifact_source"
 
-    rollback_target=${ML_SCORER_ROLLBACK_TARGET:-$(resolve_release "$ACTIVE_LINK")}
+    rollback_target=${ML_SCORER_ROLLBACK_TARGET:-}
+    [ -n "$rollback_target" ] || fail 'ML_SCORER_ROLLBACK_TARGET must name a clean release'
     validate_release_path "$rollback_target"
+    validate_route_map "$rollback_target"
 
     run_source_tests
 
@@ -285,13 +291,18 @@ case "$MODE" in
 
     old_release=$(resolve_release "$ACTIVE_LINK")
     activate_link "$release"
-    systemctl restart "$SERVICE"
 
-    if ! wait_for_health || ! validate_live_contract; then
+    if ! systemctl restart "$SERVICE" \
+      || ! wait_for_health \
+      || ! validate_live_contract; then
       printf 'Activation validation failed. Restoring %s\n' "$rollback_target" >&2
       activate_link "$rollback_target"
-      systemctl restart "$SERVICE"
-      wait_for_health || true
+      if ! systemctl restart "$SERVICE" \
+        || ! wait_for_health \
+        || ! validate_live_contract; then
+        printf 'Rollback target also failed live validation: %s\n' \
+          "$rollback_target" >&2
+      fi
       fail "release failed after activation: $release"
     fi
 
