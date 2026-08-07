@@ -728,7 +728,31 @@ class MetadataTests(unittest.TestCase):
                 before = scorer_metadata.context_data_manifest()
                 corrected.write_text(
                     ',date,close\n0,2026-08-05,101\n', encoding='utf-8')
-                after = scorer_metadata.context_data_manifest()
+                # Some filesystems can assign the same ctime to two very fast
+                # same-size writes. Model the ctime advance explicitly so this
+                # remains a deterministic unit test of the manifest contract.
+                real_stat = os.stat
+
+                class StatWithAdvancedCtime:
+                    def __init__(self, value):
+                        self._value = value
+                        self.st_ctime_ns = value.st_ctime_ns + 1
+
+                    def __getattr__(self, name):
+                        return getattr(self._value, name)
+
+                def stat_with_advanced_ctime(path):
+                    value = real_stat(path)
+                    if os.path.abspath(path) == os.path.abspath(corrected):
+                        return StatWithAdvancedCtime(value)
+                    return value
+
+                with mock.patch.object(
+                    scorer_metadata.os,
+                    'stat',
+                    side_effect=stat_with_advanced_ctime,
+                ):
+                    after = scorer_metadata.context_data_manifest()
                 self.assertTrue(after['complete'])
                 self.assertEqual(after['data_as_of'], '2026-08-05')
                 self.assertEqual(after['source_count'], len(declared))
@@ -753,7 +777,15 @@ class RealDataParityTests(unittest.TestCase):
         # All shared feature computations remain identical. Concurrent count is
         # asserted separately because the additive path fixes the legacy serving
         # bug that counted patterns outside the model's training tier.
-        legacy_features = engine.compute_features('AAPL', '2026-08-05', 29, 'l')
+        # Resource-free legacy scoring can find a current parquet for another
+        # index universe first when a stock belongs to several universes. Force
+        # the shared S&P gzip definitions here so this is a feature-math parity
+        # test, not a market-resolution test.
+        with mock.patch.object(
+            engine, '_load_opp_from_parquet', return_value=None
+        ):
+            legacy_features = engine.compute_features(
+                'AAPL', '2026-08-05', 29, 'l')
         self.assertEqual(len(FEATURE_COLS), 62)
         for name in FEATURE_COLS:
             self.assertIn(name, context_features)
