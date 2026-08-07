@@ -17,6 +17,8 @@ PREVIOUS_LINK=${ML_SCORER_PREVIOUS_LINK:-/home/flask/ml_scorer.previous}
 DATA_DIR=${ML_SCORER_DATA_DIR:-/home/flask/data}
 PYTHON=${ML_SCORER_PYTHON:-/home/flask/venv/bin/python}
 SERVICE=${ML_SCORER_SERVICE:-ml_scorer.service}
+DEPLOY_LOCK=${ML_SCORER_DEPLOY_LOCK:-/run/lock/ml-scorer-deploy.lock}
+DATA_SYNC_LOCK=${ML_SCORER_DATA_SYNC_LOCK:-/run/lock/ml-scorer-dev-data-sync.lock}
 EXPECT_RUN=${EXPECT_RUN:-20260802,20260803}
 PREFLIGHT_N=${ML_SCORER_PREFLIGHT_N:-80}
 MODE=${1:-check}
@@ -43,6 +45,13 @@ require_root() {
   [ "$(id -u)" -eq 0 ] || fail 'deploy and rollback must run as root'
 }
 
+acquire_deployment_locks() {
+  exec 8>"$DEPLOY_LOCK"
+  flock -n 8 || fail 'another scorer deployment or rollback is running'
+  exec 9>"$DATA_SYNC_LOCK"
+  flock -n 9 || fail 'the scorer data sync is running; deploy after it finishes'
+}
+
 resolve_release() {
   local path=$1
   readlink -f -- "$path" 2>/dev/null || true
@@ -50,7 +59,10 @@ resolve_release() {
 
 validate_release_path() {
   local release=$1
+  local canonical
   [ -n "$release" ] || fail 'release path is empty'
+  canonical=$(readlink -f -- "$release" 2>/dev/null || true)
+  [ "$canonical" = "$release" ] || fail "release path must be canonical: $release"
   case "$release" in
     "$RELEASE_ROOT"/*) ;;
     *) fail "release must be under $RELEASE_ROOT: $release" ;;
@@ -75,7 +87,8 @@ wait_for_health() {
   local socket="$ACTIVE_LINK/ml_scorer.sock"
   local _attempt
   for _attempt in $(seq 1 60); do
-    if curl -fsS --unix-socket "$socket" http://localhost/health >/dev/null 2>&1; then
+    if curl -fsS --connect-timeout 2 --max-time 5 \
+      --unix-socket "$socket" http://localhost/health >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -107,7 +120,8 @@ PY
 validate_live_contract() {
   local socket="$ACTIVE_LINK/ml_scorer.sock"
 
-  curl -fsS --unix-socket "$socket" http://localhost/health | "$PYTHON" -c '
+  curl -fsS --connect-timeout 2 --max-time 10 \
+    --unix-socket "$socket" http://localhost/health | "$PYTHON" -c '
 import json, sys
 p = json.load(sys.stdin)
 assert p["status"] == "ok", p
@@ -117,7 +131,8 @@ assert p["context_schema_version"] == "duration-comparison-context-v5", p
 print("health contract: ok")
 '
 
-  curl -fsS --unix-socket "$socket" http://localhost/metadata | "$PYTHON" -c '
+  curl -fsS --connect-timeout 2 --max-time 10 \
+    --unix-socket "$socket" http://localhost/metadata | "$PYTHON" -c '
 import json, sys
 p = json.load(sys.stdin)
 m = p["metadata"]
@@ -194,7 +209,8 @@ case "$MODE" in
 
   rollback)
     require_root
-    target=${2:-$(resolve_release "$PREVIOUS_LINK")}
+    acquire_deployment_locks
+    target=$(resolve_release "${2:-$PREVIOUS_LINK}")
     validate_release_path "$target"
     validate_route_map "$target"
     current=$(resolve_release "$ACTIVE_LINK")
@@ -214,6 +230,7 @@ case "$MODE" in
 
   deploy)
     require_root
+    acquire_deployment_locks
     [ -x "$PYTHON" ] || fail "Python interpreter not executable: $PYTHON"
     mkdir -p "$RELEASE_ROOT"
 
@@ -236,13 +253,13 @@ case "$MODE" in
       git -C "$REPO_ROOT" cat-file -e "$sha:$path" || fail "commit omits required file: $path"
     done
 
-    artifact_source=${ML_SCORER_ARTIFACT_SOURCE:-}
+    artifact_source=$(resolve_release "${ML_SCORER_ARTIFACT_SOURCE:-}")
     [ -n "$artifact_source" ] || fail 'ML_SCORER_ARTIFACT_SOURCE must name a verified release'
     validate_release_path "$artifact_source"
     [ -d "$artifact_source/models" ] || fail "artifact source has no models: $artifact_source"
     [ -d "$artifact_source/calibration" ] || fail "artifact source has no calibration: $artifact_source"
 
-    rollback_target=${ML_SCORER_ROLLBACK_TARGET:-}
+    rollback_target=$(resolve_release "${ML_SCORER_ROLLBACK_TARGET:-}")
     [ -n "$rollback_target" ] || fail 'ML_SCORER_ROLLBACK_TARGET must name a clean release'
     validate_release_path "$rollback_target"
     validate_route_map "$rollback_target"
@@ -285,7 +302,8 @@ case "$MODE" in
       <(cd "$candidate" && sha256sum models/* calibration/*.json)
     run_candidate_preflight "$candidate"
 
-    mv -- "$candidate" "$release"
+    [ ! -e "$release" ] || fail "release appeared during validation: $release"
+    mv -T -- "$candidate" "$release"
     rmdir -- "$STAGE_ROOT"
     STAGE_ROOT=
 
@@ -307,8 +325,13 @@ case "$MODE" in
     fi
 
     previous_next="${PREVIOUS_LINK}.next.$$"
-    ln -s "$rollback_target" "$previous_next"
-    mv -Tf -- "$previous_next" "$PREVIOUS_LINK"
+    if ln -s "$rollback_target" "$previous_next" \
+      && mv -Tf -- "$previous_next" "$PREVIOUS_LINK"; then
+      :
+    else
+      rm -f -- "$previous_next"
+      printf 'WARNING: active release passed, but previous-release bookkeeping failed\n' >&2
+    fi
 
     printf 'previous active release: %s\n' "$old_release"
     printf 'active release: %s\n' "$release"
