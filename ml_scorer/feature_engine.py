@@ -511,12 +511,22 @@ class FeatureEngine:
         # pat_concurrent_count: total unique (daysOut, direction) patterns active for
         # this symbol on this date, including self. Scan ALL combos for correctness.
         # Matches training: date_pattern_counter counts all qualifying patterns on entry_date.
-        active_pairs = set()
+        # Scan a SINGLE representative combo, matching how
+        # build_training_data.py builds date_pattern_counter for the tier.
+        # Taking the union across every combo (the previous behaviour) inflated
+        # this ~6x: measured live mean 283.8 / max 360 against a training range
+        # of mean 43.1 / max 238 (stable across all 26 training years, so this
+        # is a train/serve mismatch, not drift). Every live sample then sat
+        # beyond the training maximum, and XGBoost -- which extrapolates hardest
+        # outside its observed range -- collapsed to a NEGATIVE mean predicted
+        # return on tier 31_60, dragging that ensemble down ~36%.
+        _concurrent = 0
         for _combo_lookup in combos.values():
             for _key in _combo_lookup:
                 if _key[0] == date_str:
-                    active_pairs.add((_key[1], _key[2]))  # (daysOut, direction)
-        features['pat_concurrent_count'] = float(len(active_pairs))
+                    _concurrent += 1
+            break
+        features['pat_concurrent_count'] = float(_concurrent)
 
         # Neighborhood features: use realized price history across prior years,
         # matching build_training_data.py:compute_neighborhood_features exactly.
