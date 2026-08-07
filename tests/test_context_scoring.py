@@ -786,6 +786,8 @@ class RealDataParityTests(unittest.TestCase):
         ):
             legacy_features = engine.compute_features(
                 'AAPL', '2026-08-05', 29, 'l')
+            legacy_combos = engine._load_opp_files(
+                'AAPL', date_hint='2026-08-05')
         self.assertEqual(len(FEATURE_COLS), 62)
         for name in FEATURE_COLS:
             self.assertIn(name, context_features)
@@ -834,8 +836,6 @@ class RealDataParityTests(unittest.TestCase):
         # validated tier-bounded active-pair snapshot. Their numeric values can
         # coincide for a particular data generation, so validate each source
         # instead of requiring an incidental difference.
-        legacy_combos = engine._load_opp_files(
-            'AAPL', date_hint='2026-08-05')
         first_lookup = next(iter(legacy_combos.values()), {})
         expected_legacy_concurrent = sum(
             1 for key in first_lookup if key[0] == '2026-08-05')
