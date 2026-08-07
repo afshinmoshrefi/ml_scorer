@@ -26,10 +26,11 @@ Usage:
 import os
 import gzip
 import json
+import hashlib
 import math
 import warnings
-from datetime import datetime, timedelta
-from functools import lru_cache
+from collections import OrderedDict
+from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,9 @@ try:
         US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, COMM_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
-        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
+        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF, PATTERN_RISK_FREE_RETURN,
+        CONTEXT_PROFILE_CACHE_MAX, CONTEXT_SNAPSHOT_CACHE_MAX,
+        CONTEXT_TARGET_CACHE_MAX,
     )
 except ImportError:
     from config import (
@@ -48,7 +51,9 @@ except ImportError:
         US_CSV_DIR, ETF_CSV_DIR, INDX_CSV_DIR, COMM_CSV_DIR, OPP_BY_SYMBOL_DIR, EARNINGS_DIR,
         YEAR_COMBOS, PE_COMBOS, MAX_DEPTH_CAP, TICKER_SECTOR, SECTOR_ETF,
         get_pe_year, SPX_SEASONAL_FORWARD_DAYS, CSV_DIR,
-        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF,
+        ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF, PATTERN_RISK_FREE_RETURN,
+        CONTEXT_PROFILE_CACHE_MAX, CONTEXT_SNAPSHOT_CACHE_MAX,
+        CONTEXT_TARGET_CACHE_MAX,
     )
 
 # SPX_SEASONAL_CUTOFF_YEAR is not in the package config; define here.
@@ -56,6 +61,69 @@ except ImportError:
 SPX_SEASONAL_CUTOFF_YEAR = 1999
 
 warnings.filterwarnings('ignore')
+
+# Aggregate pattern fields that are actually consumed by the 62-feature V3
+# model.  Legacy diagnostic fields are still populated, but a harmless median
+# rounding difference must not invalidate an otherwise exact model profile.
+_V3_AGGREGATE_PROFILE_KEYS = (
+    'pat_sharpe_ratio', 'pat_avg_profit2', 'pat_direction',
+    'pat_data_years', 'pat_deepest_pass', 'pat_depth_utilization',
+    'pat_passes_recent_10', 'pat_recent_vs_deep_sharpe',
+    'pat_num_combos_qualifying', 'pat_pe_match', 'pat_pe_deepest',
+    'pat_pe_utilization', 'pat_best_winrate', 'pat_worst_winrate',
+    'pat_deepest_pass_capped30', 'pat_consistency_std', 'pat_daysOut',
+)
+
+# Opportunity rows are the authoritative inputs used to train V3.  The raw-price
+# rebuild must independently reproduce the qualifying combo set and the consumed
+# aggregate profile before those rows can be served.  Two upstream, two-decimal
+# statistics can differ slightly after later OHLC corrections: Sharpe at the last
+# displayed decimal, and favorable excursion because it depends on intrawindow
+# highs/lows.  Keep those reconciliations tightly bounded instead of rejecting a
+# model-faithful prebuilt profile or accepting an arbitrary mismatch.
+_V3_PROFILE_VALIDATION_TOLERANCES = {
+    'pat_sharpe_ratio': (0.011, 0.01),
+    'pat_avg_profit2': (0.011, 0.05),
+}
+_V3_BEST_COMBO_MODEL_KEYS = ('sharpe_ratio', 'avg_profit2')
+_V3_ROUNDED_SHARPE_TIE_TOLERANCE = 0.011
+
+# The legacy scorer deliberately represents an exact horizon that has no
+# qualifying pattern-depth row with missing pattern features.  All three V3
+# model families accept that missing-value representation, and the
+# public /score endpoint has always returned a reading for it.  The context
+# endpoint must preserve the same model contract after it independently proves
+# from raw prices that the qualifying set is genuinely empty.
+_PATTERN_V1_FEATURE_SUFFIXES = (
+    'sharpe_ratio', 'avg_profit', 'median_profit', 'avg_profit2',
+    'mfe_ratio', 'profit_per_day', 'sharpe_per_day',
+    'daysOut', 'daysOut_bucket', 'direction',
+    'data_years', 'deepest_pass', 'depth_utilization',
+    'passes_at_max_depth', 'passes_recent_10', 'recent_vs_deep_sharpe',
+    'num_combos_qualifying',
+    'pe_match', 'pe_deepest', 'pe_utilization',
+    'best_winrate', 'worst_winrate', 'deepest_pass_capped30',
+)
+_PATTERN_V2_FEATURE_SUFFIXES = (
+    'consistency_std', 'concurrent_count',
+    'neighbor_avg_wr', 'sharpness', 'pre_slope', 'post_cliff',
+    'hit_last_year',
+)
+
+_PINNED_PRICE_SYMBOLS = frozenset({
+    'SPY', 'HYG', 'LQD', 'XLK', 'XLU', 'XLF', 'XLE', 'XLV', 'XLY',
+    'XLC', 'XLI', 'XLP', 'XLRE', 'XLB', 'VIX', 'VIX3M', 'US10Y',
+    'US2Y', 'ADVN', 'DECN', 'IRX', 'DXY', 'TLT',
+})
+
+
+class PatternProfileUnavailable(RuntimeError):
+    """Raised when an exact checkpoint has no trustworthy V3 pattern profile."""
+
+    def __init__(self, reason, details=None):
+        self.reason = reason
+        self.details = details or {}
+        super().__init__(reason)
 
 
 class FeatureEngine:
@@ -74,12 +142,39 @@ class FeatureEngine:
         self._parquet_loaded_markets = set()  # market folders already loaded for this date
         # Market data (SPY, VIX, bonds, credit, sector ETFs)
         self._market_cache = {}
+        # Commodity regime inputs live in a separate namespace.  This prevents
+        # the crude-oil context ticker CL from shadowing NYSE equity CL.
+        self._commodity_price_cache = {}
         # Precomputed technical indicators cache
         self._ta_cache = {}
         # Breadth data
         self._breadth_cache = None
         # SPX seasonal lookup (lazy-loaded)
         self._spx_seasonal_lookup = None
+        # Resource-aware snapshots and dynamically rebuilt checkpoint profiles.
+        self._context_opp_snapshot_cache = OrderedDict()
+        self._recalculated_profile_cache = OrderedDict()
+        self._selected_recurrence_cache = OrderedDict()
+        self._context_target_cache = OrderedDict()
+        self._price_source_versions = {}
+
+    @staticmethod
+    def _lru_get(cache, key):
+        try:
+            value = cache.pop(key)
+        except KeyError:
+            return None
+        cache[key] = value
+        return value
+
+    @staticmethod
+    def _lru_put(cache, key, value, maximum):
+        cache.pop(key, None)
+        cache[key] = value
+        evicted = None
+        if len(cache) > maximum:
+            evicted = cache.popitem(last=False)
+        return evicted
 
     # ------------------------------------------------------------------
     # Data Loading
@@ -114,6 +209,9 @@ class FeatureEngine:
             'XLE': ETF_CSV_DIR, 'XLV': ETF_CSV_DIR, 'XLY': ETF_CSV_DIR,
             'XLC': ETF_CSV_DIR, 'XLI': ETF_CSV_DIR, 'XLP': ETF_CSV_DIR,
             'XLRE': ETF_CSV_DIR, 'XLB': ETF_CSV_DIR,
+            # ETF_CATEGORY_SECTOR_ETF maps fixed-income ETFs to TLT. Keep it
+            # in the version-aware shared-source cache just like sector ETFs.
+            'TLT': ETF_CSV_DIR,
         }
         indx_symbols = {
             'VIX': INDX_CSV_DIR, 'VIX3M': INDX_CSV_DIR,
@@ -127,11 +225,29 @@ class FeatureEngine:
             'GC': COMM_CSV_DIR,
         }
 
-        for sym, directory in {**market_symbols, **indx_symbols, **comm_symbols}.items():
-            if sym not in self._price_cache:
-                path = os.path.join(directory, f'{sym}.csv')
-                if os.path.exists(path):
+        for sym, directory in {**market_symbols, **indx_symbols}.items():
+            path = os.path.join(directory, f'{sym}.csv')
+            if os.path.exists(path):
+                stat = os.stat(path)
+                version = (
+                    path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+                version_key = ('market', sym)
+                if self._price_source_versions.get(version_key) != version:
                     self._price_cache[sym] = self._load_csv(path)
+                    self._price_source_versions[version_key] = version
+
+        # Commodity tickers are model context, not target-security aliases.
+        # In particular, CL is both crude oil and a US equity ticker.
+        for sym, directory in comm_symbols.items():
+            path = os.path.join(directory, f'{sym}.csv')
+            if os.path.exists(path):
+                stat = os.stat(path)
+                version = (
+                    path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+                version_key = ('commodity', sym)
+                if self._price_source_versions.get(version_key) != version:
+                    self._commodity_price_cache[sym] = self._load_csv(path)
+                    self._price_source_versions[version_key] = version
 
         for sym in symbols:
             if sym not in self._price_cache:
@@ -149,6 +265,15 @@ class FeatureEngine:
         elif isinstance(self._price_cache[symbol], str):
             self._price_cache[symbol] = self._load_csv(self._price_cache[symbol])
         return self._price_cache[symbol]
+
+    def _get_commodity_price_df(self, symbol):
+        """Return a commodity context series without entering equity namespace."""
+        if symbol not in self._commodity_price_cache:
+            path = os.path.join(COMM_CSV_DIR, f'{symbol}.csv')
+            if not os.path.exists(path):
+                return None
+            self._commodity_price_cache[symbol] = self._load_csv(path)
+        return self._commodity_price_cache[symbol]
 
     def _get_price_on_date(self, df, date, max_lookback=5):
         """Get the close price on or just before a date."""
@@ -352,6 +477,960 @@ class FeatureEngine:
         year2 = int(parts[1])
         return year1, year2, is_pe
 
+    # ------------------------------------------------------------------
+    # Exact-horizon V3 pattern profile for POST /score/context
+    # ------------------------------------------------------------------
+
+    def _context_paths(self, resource_id, symbol):
+        """Resolve target price and opportunity paths in the requested universe."""
+        resource_id = str(resource_id)
+        market = ML_PARQUET_MARKETS.get(resource_id)
+        if market is None:
+            raise PatternProfileUnavailable(
+                'unsupported_resource', {'resource_id': resource_id})
+
+        target_dir = ETF_CSV_DIR if resource_id == '11' else US_CSV_DIR
+        price_path = os.path.join(target_dir, f'{symbol}.csv')
+        if not os.path.isfile(price_path):
+            raise PatternProfileUnavailable(
+                'target_price_unavailable',
+                {'resource_id': resource_id, 'symbol': symbol},
+            )
+
+        _display, folder = market
+        opp_dir = os.path.join(DATA_DIR, folder, 'opp_by_symbol', symbol)
+        if not os.path.isdir(opp_dir):
+            raise PatternProfileUnavailable(
+                'pattern_definitions_unavailable',
+                {'resource_id': resource_id, 'symbol': symbol},
+            )
+        return price_path, opp_dir
+
+    def _prepare_context_target(self, resource_id, symbol):
+        """Load a resource-qualified target without ticker namespace ambiguity."""
+        price_path, opp_dir = self._context_paths(resource_id, symbol)
+        stat = os.stat(price_path)
+        file_version = (
+            price_path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+        target_key = (str(resource_id), symbol)
+
+        # Load regime inputs first, then explicitly install the target in the
+        # equity/ETF namespace.  Commodity CL is held in its own cache.
+        self.load_price_data([])
+        cached = self._lru_get(self._context_target_cache, target_key)
+        if cached is None or cached[3] != file_version:
+            frame = self._load_csv(price_path)
+            cached = (frame, price_path, opp_dir, file_version)
+            evicted = self._lru_put(
+                self._context_target_cache,
+                target_key,
+                cached,
+                CONTEXT_TARGET_CACHE_MAX,
+            )
+            if evicted is not None:
+                evicted_key, evicted_value = evicted
+                evicted_symbol = evicted_key[1]
+                still_cached = any(
+                    key[1] == evicted_symbol for key in self._context_target_cache
+                )
+                if (
+                    not still_cached
+                    and evicted_symbol not in _PINNED_PRICE_SYMBOLS
+                    and self._price_cache.get(evicted_symbol) is evicted_value[0]
+                ):
+                    self._price_cache.pop(evicted_symbol, None)
+
+        # Downstream V3 feature groups use the legacy symbol lookup. Install the
+        # current resource-qualified frame for only this calculation; LRU
+        # eviction above prevents target frames from accumulating forever.
+        self._price_cache[symbol] = cached[0]
+        return cached
+
+    def _combo_definitions(self, opp_dir):
+        """Return real per-symbol combo definitions in on-disk generator order."""
+        definitions = []
+        for fname in os.listdir(opp_dir):
+            if not fname.endswith('.csv.gz'):
+                continue
+            combo_name = fname[:-7]
+            try:
+                year1, year2, is_pe = self._parse_combo(combo_name)
+            except (ValueError, IndexError):
+                continue
+            if year1 <= 0 or year2 <= 0 or year2 > year1:
+                continue
+            path = os.path.join(opp_dir, fname)
+            stat = os.stat(path)
+            definitions.append({
+                'name': combo_name,
+                'year1': year1,
+                'year2': year2,
+                'is_pe': is_pe,
+                'path': path,
+                'mtime_ns': stat.st_mtime_ns,
+                'ctime_ns': stat.st_ctime_ns,
+                'bytes': stat.st_size,
+            })
+        # Preserve the same combo insertion order used by the V3 training
+        # builder and the legacy /score path. Rounded-Sharpe ties select the
+        # first row, so changing this order would change a trained feature.
+        return definitions
+
+    @staticmethod
+    def _definitions_version(definitions):
+        material = '|'.join(
+            f"{item['name']}:{item['mtime_ns']}:{item['ctime_ns']}:{item['bytes']}"
+            for item in definitions
+        )
+        return hashlib.sha256(material.encode('utf-8')).hexdigest()
+
+    def _context_opp_snapshot(self, opp_dir, date_str, definitions,
+                              active_date_strs=None):
+        """Read all prebuilt rows for one exact date once.
+
+        Besides exact-horizon validation, the complete active-pair set is used
+        for the V3 concurrent-pattern feature.  This snapshot is resource-aware;
+        unlike the legacy scorer it never silently falls back to another market.
+        """
+        active_date_strs = frozenset(active_date_strs or (date_str,))
+        active_date_strs = frozenset((*active_date_strs, date_str))
+        key = (
+            opp_dir,
+            date_str,
+            tuple(sorted(active_date_strs)),
+            self._definitions_version(definitions),
+        )
+        cached = self._lru_get(self._context_opp_snapshot_cache, key)
+        if cached is not None:
+            return cached
+
+        rows = {}
+        active_pairs_by_date = {
+            active_date: set() for active_date in active_date_strs
+        }
+        for definition in definitions:
+            combo_name = definition['name']
+            combo_rows = {}
+            try:
+                with gzip.open(definition['path'], 'rt') as gz:
+                    header = gz.readline().strip().split(',')
+                    date_idx = header.index('date')
+                    days_idx = header.index('daysOut')
+                    dir_idx = header.index('LorS')
+                    sr_idx = header.index('sharpe_ratio')
+                    ap_idx = header.index('avg_profit')
+                    mp_idx = header.index('median_profit')
+                    ap2_idx = header.index('avg_profit2') if 'avg_profit2' in header else ap_idx
+                    for line in gz:
+                        fields = line.rstrip().split(',')
+                        if len(fields) <= max(date_idx, days_idx, dir_idx, sr_idx, ap_idx, mp_idx, ap2_idx):
+                            continue
+                        row_date = fields[date_idx][:10]
+                        if row_date not in active_date_strs:
+                            continue
+                        pair = (int(fields[days_idx]), fields[dir_idx])
+                        active_pairs_by_date[row_date].add(pair)
+                        if row_date == date_str:
+                            combo_rows[pair] = {
+                                'sharpe_ratio': float(fields[sr_idx]),
+                                'avg_profit': float(fields[ap_idx]),
+                                'median_profit': float(fields[mp_idx]),
+                                'avg_profit2': float(fields[ap2_idx]),
+                            }
+            except Exception as exc:
+                warnings.warn(
+                    f'Skipping context combo file {definition["path"]}: {exc}')
+                continue
+            if combo_rows:
+                rows[combo_name] = combo_rows
+
+        snapshot = {
+            'rows': rows,
+            'active_pairs': active_pairs_by_date[date_str],
+            'active_pairs_by_date': active_pairs_by_date,
+        }
+        self._lru_put(
+            self._context_opp_snapshot_cache,
+            key,
+            snapshot,
+            CONTEXT_SNAPSHOT_CACHE_MAX,
+        )
+        return snapshot
+
+    @staticmethod
+    def _context_entry_date(price_index, nominal_date):
+        """Return the 0..3-day forward-snapped entry used by V3 training.
+
+        Future opportunity dates can be newer than the latest EOD price row. In
+        that case only the deterministic weekend part of the snap is knowable,
+        so use the next weekday instead of rejecting an otherwise scoreable row.
+        Once EOD data arrives, the price-index branch becomes authoritative and
+        the scorer process/data generation changes before caches are warmed.
+        """
+        nominal_date = pd.Timestamp(nominal_date)
+        last_price_date = price_index[-1] if len(price_index) else None
+        for offset in range(0, 4):
+            candidate = nominal_date + pd.Timedelta(days=offset)
+            if candidate in price_index:
+                return candidate
+            if last_price_date is not None and candidate > last_price_date:
+                if candidate.weekday() < 5:
+                    return candidate
+        return None
+
+    def _context_concurrent_dates(self, price_index, nominal_date):
+        """Nominal dates that V3 training maps to the same actual entry."""
+        actual_entry = self._context_entry_date(price_index, nominal_date)
+        if actual_entry is None:
+            return None, ()
+        nominal_dates = []
+        for offset in range(0, 4):
+            candidate = actual_entry - pd.Timedelta(days=offset)
+            if self._context_entry_date(price_index, candidate) == actual_entry:
+                nominal_dates.append(candidate.strftime('%Y-%m-%d'))
+        return actual_entry, tuple(sorted(nominal_dates))
+
+    @staticmethod
+    def _context_concurrent_count(active_pairs_by_date, days_out):
+        """Count same-entry patterns within the model's training tier."""
+        days_out = int(days_out)
+        if days_out <= 30:
+            tier_min, tier_max = 10, 30
+        elif days_out <= 60:
+            tier_min, tier_max = 31, 60
+        else:
+            tier_min, tier_max = 61, 90
+        return float(sum(
+            1
+            for pairs in active_pairs_by_date.values()
+            for pair_days_out, _direction in pairs
+            if tier_min <= int(pair_days_out) <= tier_max
+        ))
+
+    def _compute_historical_observation(self, price_df, month, day, year,
+                                        days_out, dir_char):
+        """Recalculate one completed historical observation.
+
+        Ground truth: TradeWave windows use CALENDAR days.  ``days_out`` is the
+        legacy raw offset, so the nominal end is exactly ``start + days_out``.
+        No leap-day increment is ever added.  Entry and end independently snap
+        forward to available price rows using the generator's 0-3/0-4 limits.
+        """
+        try:
+            nominal_start = pd.Timestamp(year=year, month=month, day=day)
+        except (ValueError, TypeError):
+            return None
+
+        index = price_df.index
+        entry = None
+        for offset in range(0, 4):
+            candidate = nominal_start + pd.Timedelta(days=offset)
+            if candidate in index:
+                entry = candidate
+                break
+        if entry is None:
+            return None
+
+        nominal_end = nominal_start + pd.Timedelta(days=int(days_out))
+        if nominal_end > index[-1]:
+            return None
+
+        exit_date = None
+        for offset in range(0, 5):
+            candidate = nominal_end + pd.Timedelta(days=offset)
+            if candidate in index:
+                exit_date = candidate
+                break
+        if exit_date is None:
+            return None
+
+        try:
+            entry_price = float(price_df.loc[entry, 'close'])
+            exit_price = float(price_df.loc[exit_date, 'close'])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if (not math.isfinite(entry_price) or not math.isfinite(exit_price)
+                or entry_price == 0):
+            return None
+
+        window = price_df.loc[
+            (price_df.index > entry) & (price_df.index <= exit_date)]
+        if window.empty:
+            return None
+
+        close_return = (exit_price - entry_price) / entry_price * 100.0
+        if dir_char == 's':
+            close_return = -close_return
+            favorable_price = float(window['low'].min())
+            favorable_return = (entry_price - favorable_price) / entry_price * 100.0
+        else:
+            favorable_price = float(window['high'].max())
+            favorable_return = (favorable_price - entry_price) / entry_price * 100.0
+
+        if not (math.isfinite(close_return) and math.isfinite(favorable_return)):
+            return None
+        # Opportunity files store annual percentages to two decimals before
+        # aggregating.  Matching that ordering reproduces their rows exactly.
+        return {
+            'year': year,
+            'return': round(close_return, 2),
+            'favorable_return': round(favorable_return, 2),
+            'nominal_start': nominal_start,
+            'nominal_end': nominal_end,
+            'entry_date': entry,
+            'exit_date': exit_date,
+        }
+
+    @staticmethod
+    def _selected_winning_years(partial):
+        """Read TradeWave's selected recurrence threshold from request context.
+
+        The context endpoint remains compatible with older callers that used
+        ``partial`` only as opaque provenance.  A threshold is enforced only
+        when one of the known statistical fields is present.
+        """
+        value = partial
+        for _depth in range(3):
+            if not isinstance(value, dict):
+                break
+            selected = None
+            for field in ('min_winning_years', 'partialYears', 'year2'):
+                if value.get(field) not in (None, ''):
+                    selected = value[field]
+                    break
+            if selected is not None:
+                value = selected
+                break
+            if 'selection' not in value:
+                return None
+            value = value.get('selection')
+        if value is None or isinstance(value, bool) or value == '':
+            return None
+        try:
+            number = float(str(value).strip())
+        except (TypeError, ValueError) as exc:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence',
+                {'field': 'min_winning_years'},
+            ) from exc
+        if not math.isfinite(number) or not number.is_integer() or number <= 0:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence',
+                {'field': 'min_winning_years'},
+            )
+        return int(number)
+
+    @staticmethod
+    def _selected_year_spec(years):
+        """Return (mode, PE phase, requested observations) for a years string."""
+        value = str(years or '').strip().lower()
+        pe_phase = None
+        if value.startswith('pe') and '-' in value:
+            phase_text, count_text = value[2:].split('-', 1)
+            try:
+                phase_token = int(phase_text)
+                requested = int(count_text)
+            except ValueError as exc:
+                raise PatternProfileUnavailable(
+                    'invalid_selected_recurrence', {'field': 'years'}
+                ) from exc
+            # TradeWave's public PE labels use 0..3 while the scorer's
+            # get_pe_year helper uses 1..4.  In both systems ``pe2`` is the
+            # midterm phase; pe0 maps to the scorer's phase 4.
+            if phase_token not in (0, 1, 2, 3, 4):
+                raise PatternProfileUnavailable(
+                    'invalid_selected_recurrence', {'field': 'years'}
+                )
+            pe_phase = 4 if phase_token == 0 else phase_token
+            mode = 'pe'
+        else:
+            try:
+                requested = int(value)
+            except ValueError as exc:
+                raise PatternProfileUnavailable(
+                    'invalid_selected_recurrence', {'field': 'years'}
+                ) from exc
+            mode = 'consecutive'
+        if requested <= 0 or requested > 100:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence', {'field': 'years'}
+            )
+        return mode, pe_phase, requested
+
+    def compute_selected_recurrence_summary(self, resource_id, symbol, date,
+                                            days_out, direction, years, partial):
+        """Recalculate the caller-selected historical cohort at one horizon.
+
+        This summary is explanatory screen evidence, not a new V3 feature
+        definition or an inference gate. V3 consumes its trained all-combo
+        profile whenever that profile can be validated, whether or not the
+        selected cohort still meets its original recurrence rule.
+        """
+        if isinstance(date, str):
+            date = pd.Timestamp(date)
+        dir_char = direction[0].lower()
+        mode, pe_phase, requested = self._selected_year_spec(years)
+        required = self._selected_winning_years(partial)
+        if required is not None and required > requested:
+            raise PatternProfileUnavailable(
+                'invalid_selected_recurrence',
+                {
+                    'required_positive_years': required,
+                    'requested_observations': requested,
+                },
+            )
+
+        price_df, price_path, _opp_dir, file_version = self._prepare_context_target(
+            resource_id, symbol)
+        cache_key = (
+            str(resource_id), symbol, str(date)[:10], int(days_out), dir_char,
+            str(years).strip().lower(), required, file_version,
+        )
+        cached = self._lru_get(self._selected_recurrence_cache, cache_key)
+        if cached is not None:
+            return cached
+
+        observations = []
+        first_year = int(price_df.index[0].year)
+        for year in range(first_year, int(date.year)):
+            if mode == 'pe' and get_pe_year(year) != pe_phase:
+                continue
+            observation = self._compute_historical_observation(
+                price_df, date.month, date.day, year, int(days_out), dir_char)
+            if observation is not None:
+                observations.append(observation)
+
+        selected = observations[-requested:]
+        sample_size = len(selected)
+        positive_years = sum(row['return'] >= 0.0 for row in selected)
+        complete = sample_size == requested
+        if required is None:
+            status = 'not_enforced'
+        elif not complete:
+            status = 'insufficient_history'
+        elif positive_years < required:
+            status = 'below_threshold'
+        else:
+            status = 'qualified'
+
+        returns = np.asarray([row['return'] for row in selected], dtype=float)
+        favorable = np.asarray(
+            [row['favorable_return'] for row in selected], dtype=float)
+        summary = {
+            'status': status,
+            'mode': mode,
+            'years': str(years).strip().lower(),
+            'requested_observations': requested,
+            'sample_size': sample_size,
+            'positive_years': int(positive_years),
+            'required_positive_years': required,
+            'win_rate': (
+                round(float(positive_years) / sample_size, 6)
+                if sample_size else None
+            ),
+            'average_return_pct': (
+                round(float(np.mean(returns)), 4) if sample_size else None
+            ),
+            'median_return_pct': (
+                round(float(np.median(returns)), 4) if sample_size else None
+            ),
+            'average_favorable_excursion_pct': (
+                round(float(np.mean(favorable)), 4) if sample_size else None
+            ),
+            'complete': complete,
+            'data_as_of': str(price_df.index[-1])[:10],
+            'price_source': os.path.basename(price_path),
+        }
+        if pe_phase is not None:
+            summary['pe_phase'] = pe_phase
+        self._lru_put(
+            self._selected_recurrence_cache,
+            cache_key,
+            summary,
+            CONTEXT_PROFILE_CACHE_MAX,
+        )
+        return summary
+
+    def _combo_row_from_observations(self, observations, year1, year2, days_out):
+        """Build one opportunity row if its real combo threshold qualifies."""
+        if len(observations) < year1:
+            return None
+        selected = observations[-year1:]
+        returns = np.asarray([row['return'] for row in selected], dtype=float)
+        favorable = np.asarray(
+            [row['favorable_return'] for row in selected], dtype=float)
+        if len(returns) != year1 or not np.isfinite(returns).all() or not np.isfinite(favorable).all():
+            return None
+        if int(np.sum(returns >= 0.0)) < year2:
+            return None
+
+        avg_profit = float(np.mean(returns))
+        median_profit = float(np.median(returns))
+        avg_profit2 = float(np.mean(favorable))
+        profit_std = float(np.std(returns, ddof=1)) if len(returns) > 1 else 0.0
+        profit_std2 = float(np.std(favorable, ddof=1)) if len(favorable) > 1 else 0.0
+        hurdle = PATTERN_RISK_FREE_RETURN * (float(days_out) / 365.0)
+        sharpe = (avg_profit - hurdle) / profit_std if profit_std > 0 else 0.0
+        sharpe2 = (avg_profit2 - hurdle) / profit_std2 if profit_std2 > 0 else 0.0
+        return {
+            'sharpe_ratio': round(sharpe, 2),
+            'avg_profit': round(avg_profit, 2),
+            'median_profit': round(median_profit, 2),
+            'avg_profit2': round(avg_profit2, 2),
+            'sharpe_ratio2': round(sharpe2, 2),
+        }
+
+    def _aggregate_pattern_profile(self, qualifying_rows, definitions,
+                                   data_years, dir_char, days_out):
+        """Aggregate qualifying combo rows exactly as V3 training did."""
+        best_sharpe = None
+        best_row = None
+        best_combo = None
+        deepest_pass = 0
+        pe_deepest = 0
+        num_combos_qualifying = 0
+        passes_recent_10 = 0
+        sharpe_at_10 = None
+        sharpe_at_deepest = None
+        best_winrate = 0.0
+        worst_winrate = 1.0
+        deepest_pass_capped30 = 0
+        non_pe_winrates = []
+
+        for definition in definitions:
+            combo_name = definition['name']
+            row = qualifying_rows.get(combo_name)
+            if row is None:
+                continue
+            year1 = definition['year1']
+            year2 = definition['year2']
+            is_pe = definition['is_pe']
+            winrate = year2 / year1
+            num_combos_qualifying += 1
+
+            if is_pe:
+                pe_deepest = max(pe_deepest, year1)
+            else:
+                non_pe_winrates.append(winrate)
+                if year1 > deepest_pass:
+                    deepest_pass = year1
+                    sharpe_at_deepest = row['sharpe_ratio']
+                if year1 == 10 and year2 == 10:
+                    passes_recent_10 = 1
+                    sharpe_at_10 = row['sharpe_ratio']
+                deepest_pass_capped30 = max(deepest_pass_capped30, min(year1, 30))
+
+            best_winrate = max(best_winrate, winrate)
+            worst_winrate = min(worst_winrate, winrate)
+            if best_sharpe is None or row['sharpe_ratio'] > best_sharpe:
+                best_sharpe = row['sharpe_ratio']
+                best_row = row
+                best_combo = combo_name
+
+        if best_row is None:
+            return None, None
+
+        max_possible_depth = max(
+            (d['year1'] for d in definitions if not d['is_pe']), default=0)
+        depth_denom = min(data_years, MAX_DEPTH_CAP)
+        pe_denom = depth_denom / 4.0
+
+        # The nullable ratio mirrors V3 training: absence of a perfect 10/10
+        # pass is represented as missing, which all three model families learned.
+        recent_vs_deep = np.nan
+        if sharpe_at_10 and sharpe_at_deepest:
+            recent_vs_deep = sharpe_at_10 / sharpe_at_deepest
+
+        avg_profit = best_row['avg_profit']
+        avg_profit2 = best_row['avg_profit2']
+        if days_out <= 15:
+            days_bucket = 0
+        elif days_out <= 45:
+            days_bucket = 1
+        elif days_out <= 90:
+            days_bucket = 2
+        else:
+            days_bucket = 3
+
+        profile = {
+            'pat_sharpe_ratio': best_row['sharpe_ratio'],
+            'pat_avg_profit': avg_profit,
+            'pat_median_profit': best_row['median_profit'],
+            'pat_avg_profit2': avg_profit2,
+            'pat_mfe_ratio': avg_profit2 / avg_profit if avg_profit != 0 else 1.0,
+            'pat_profit_per_day': avg_profit / days_out if days_out > 0 else 0.0,
+            'pat_sharpe_per_day': (
+                best_row['sharpe_ratio'] / math.sqrt(days_out) if days_out > 0 else 0.0),
+            'pat_daysOut': int(days_out),
+            'pat_daysOut_bucket': days_bucket,
+            'pat_direction': 1 if dir_char == 'l' else 0,
+            'pat_data_years': data_years,
+            'pat_deepest_pass': deepest_pass,
+            'pat_depth_utilization': deepest_pass / depth_denom if depth_denom > 0 else 0,
+            'pat_passes_at_max_depth': 1 if deepest_pass >= max_possible_depth else 0,
+            'pat_passes_recent_10': passes_recent_10,
+            'pat_recent_vs_deep_sharpe': recent_vs_deep,
+            'pat_num_combos_qualifying': num_combos_qualifying,
+            'pat_pe_match': 1 if pe_deepest > 0 else 0,
+            'pat_pe_deepest': pe_deepest,
+            'pat_pe_utilization': pe_deepest / pe_denom if pe_denom > 0 else 0,
+            'pat_best_winrate': best_winrate,
+            'pat_worst_winrate': worst_winrate if worst_winrate < 1.0 else best_winrate,
+            'pat_deepest_pass_capped30': deepest_pass_capped30,
+            'pat_consistency_std': (
+                float(np.std(non_pe_winrates)) if len(non_pe_winrates) > 1 else 0.0),
+        }
+        return profile, {
+            'best_combo': best_combo,
+            'max_possible_depth': max_possible_depth,
+        }
+
+    @staticmethod
+    def _empty_pattern_profile():
+        """Return the V3 missing-profile vector used by the legacy scorer.
+
+        This is not a fabricated weak pattern.  It preserves the existing
+        scorer representation for "no qualifying depth row was found."
+        """
+        return {
+            f'pat_{name}': np.nan
+            for name in (
+                *_PATTERN_V1_FEATURE_SUFFIXES,
+                *_PATTERN_V2_FEATURE_SUFFIXES,
+            )
+        }
+
+    @staticmethod
+    def _profile_value_differences(left, right, keys=None, tolerance=1e-10,
+                                   tolerances=None):
+        keys = tuple(keys) if keys is not None else tuple(left)
+        if any(key not in left or key not in right for key in keys):
+            return [
+                key for key in keys if key not in left or key not in right
+            ]
+        differences = []
+        tolerance_by_key = tolerances or {}
+        for key in keys:
+            a = left[key]
+            b = right[key]
+            try:
+                if np.isnan(a) and np.isnan(b):
+                    continue
+            except TypeError:
+                pass
+            if not (math.isfinite(float(a)) and math.isfinite(float(b))):
+                differences.append(key)
+                continue
+            absolute_tolerance, relative_tolerance = tolerance_by_key.get(
+                key, (tolerance, 0.0))
+            allowed = max(
+                float(absolute_tolerance),
+                float(relative_tolerance) * max(abs(float(a)), abs(float(b))),
+            )
+            if abs(float(a) - float(b)) > allowed:
+                differences.append(key)
+        return differences
+
+    @classmethod
+    def _profile_values_equal(cls, left, right, keys=None, tolerance=1e-10,
+                              tolerances=None):
+        return not cls._profile_value_differences(
+            left,
+            right,
+            keys=keys,
+            tolerance=tolerance,
+            tolerances=tolerances,
+        )
+
+    @staticmethod
+    def _profile_hash(profile):
+        normalized = {
+            key: (None if isinstance(value, (float, np.floating)) and not math.isfinite(float(value))
+                  else float(value) if isinstance(value, (np.floating, np.integer)) else value)
+            for key, value in profile.items()
+        }
+        payload = json.dumps(
+            normalized, sort_keys=True, separators=(',', ':'), allow_nan=False)
+        return hashlib.sha256(payload.encode('utf-8')).hexdigest()
+
+    def compute_recalculated_pattern_profile(self, resource_id, symbol, date,
+                                             days_out, direction):
+        """Build the model-faithful all-combo V3 profile at an exact horizon."""
+        if isinstance(date, str):
+            date = pd.Timestamp(date)
+        dir_char = direction[0].lower()
+        price_df, price_path, opp_dir, file_version = self._prepare_context_target(
+            resource_id, symbol)
+        definitions = self._combo_definitions(opp_dir)
+        if not definitions:
+            raise PatternProfileUnavailable('pattern_definitions_unavailable')
+
+        definitions_version = self._definitions_version(definitions)
+        cache_key = (
+            str(resource_id), symbol, str(date)[:10], int(days_out), dir_char,
+            file_version, definitions_version,
+        )
+        cached = self._lru_get(self._recalculated_profile_cache, cache_key)
+        if cached is not None:
+            return cached
+
+        max_regular_depth = max(
+            (d['year1'] for d in definitions if not d['is_pe']), default=0)
+        max_pe_depth = max(
+            (d['year1'] for d in definitions if d['is_pe']), default=0)
+        earliest_year = int(price_df.index[0].year)
+        # Extra calendar buffer lets sparse early data fall away while retaining
+        # enough completed observations for the deepest actual definition.
+        lookback_years = max(max_regular_depth + 8, max_pe_depth * 4 + 8)
+        first_year = max(earliest_year, int(date.year) - lookback_years)
+
+        regular_observations = []
+        pe2_observations = []
+        for year in range(first_year, int(date.year)):
+            observation = self._compute_historical_observation(
+                price_df, date.month, date.day, year, int(days_out), dir_char)
+            if observation is None:
+                continue
+            regular_observations.append(observation)
+            if get_pe_year(year) == 2:
+                pe2_observations.append(observation)
+
+        dynamic_rows = {}
+        for definition in definitions:
+            observations = pe2_observations if definition['is_pe'] else regular_observations
+            row = self._combo_row_from_observations(
+                observations, definition['year1'], definition['year2'], int(days_out))
+            if row is not None:
+                dynamic_rows[definition['name']] = row
+
+        data_years = len(price_df) / 252.0
+        dynamic_profile, aggregate_meta = self._aggregate_pattern_profile(
+            dynamic_rows, definitions, data_years, dir_char, int(days_out))
+        profile_absent = dynamic_profile is None
+
+        # Reject genuinely incomplete/non-finite core data.  One field is
+        # intentionally nullable because that exact missingness was present in
+        # V3 training when a pattern did not pass the perfect 10/10 combo.
+        nullable = {'pat_recent_vs_deep_sharpe'}
+        if not profile_absent:
+            for key, value in dynamic_profile.items():
+                if key in nullable and not math.isfinite(float(value)):
+                    continue
+                if not math.isfinite(float(value)):
+                    raise PatternProfileUnavailable(
+                        'nonfinite_pattern_profile', {'feature': key})
+
+        date_str = str(date)[:10]
+        actual_entry, concurrent_dates = self._context_concurrent_dates(
+            price_df.index, date)
+        if actual_entry is None:
+            raise PatternProfileUnavailable(
+                'target_entry_unavailable', {'date': date_str})
+        snapshot = self._context_opp_snapshot(
+            opp_dir,
+            date_str,
+            definitions,
+            active_date_strs=concurrent_dates,
+        )
+        prebuilt_rows = {
+            name: rows[(int(days_out), dir_char)]
+            for name, rows in snapshot['rows'].items()
+            if (int(days_out), dir_char) in rows
+        }
+        prebuilt_profile, prebuilt_aggregate_meta = self._aggregate_pattern_profile(
+            prebuilt_rows, definitions, data_years, dir_char, int(days_out))
+        qualifying_sets_match = set(prebuilt_rows) == set(dynamic_rows)
+
+        if profile_absent:
+            # Absence is itself a valid, scoreable model state only when both
+            # independent sources agree that the exact duration has no
+            # qualifying pattern-depth rows.  Any one-sided row is still a hard
+            # integrity failure.
+            if prebuilt_profile is not None or prebuilt_rows or dynamic_rows:
+                raise PatternProfileUnavailable(
+                    'prebuilt_profile_mismatch',
+                    {
+                        'dynamic_combo_count': len(dynamic_rows),
+                        'prebuilt_combo_count': len(prebuilt_rows),
+                        'qualifying_sets_match': qualifying_sets_match,
+                        'model_values_match': False,
+                        'dynamic_best_combo': None,
+                        'prebuilt_best_combo': (
+                            prebuilt_aggregate_meta.get('best_combo')
+                            if isinstance(prebuilt_aggregate_meta, dict) else None
+                        ),
+                    },
+                )
+
+            served_profile = self._empty_pattern_profile()
+            result = (
+                served_profile,
+                {
+                    'source': 'dynamic_recalculation_no_qualifying_profile',
+                    'profile_state': 'no_qualifying_profile',
+                    'prebuilt_validated': True,
+                    'profile_validation': 'exact_absence',
+                    'reconciled_model_fields': [],
+                    'dynamic_best_combo': None,
+                    'prebuilt_best_combo': None,
+                    'qualifying_combo_count': 0,
+                    'prebuilt_combo_count': 0,
+                    'profile_hash': self._profile_hash(served_profile),
+                    'dynamic_profile_hash': self._profile_hash(served_profile),
+                    'data_as_of': str(price_df.index[-1])[:10],
+                    'price_path': price_path,
+                    'best_combo': None,
+                    'completed_observations': len(regular_observations),
+                    'completed_pe2_observations': len(pe2_observations),
+                    'combo_definitions': len(definitions),
+                    '_active_pairs': snapshot['active_pairs'],
+                    '_active_pairs_by_date': snapshot.get(
+                        'active_pairs_by_date', {date_str: snapshot['active_pairs']}),
+                    'actual_entry_date': actual_entry.strftime('%Y-%m-%d'),
+                    'concurrent_nominal_dates': list(concurrent_dates),
+                    'nullable_features': sorted(served_profile),
+                },
+            )
+            self._lru_put(
+                self._recalculated_profile_cache,
+                cache_key,
+                result,
+                CONTEXT_PROFILE_CACHE_MAX,
+            )
+            return result
+
+        strict_differences = (
+            self._profile_value_differences(
+                prebuilt_profile,
+                dynamic_profile,
+                keys=_V3_AGGREGATE_PROFILE_KEYS,
+            )
+            if prebuilt_profile is not None else list(_V3_AGGREGATE_PROFILE_KEYS)
+        )
+        model_differences = (
+            self._profile_value_differences(
+                prebuilt_profile,
+                dynamic_profile,
+                keys=_V3_AGGREGATE_PROFILE_KEYS,
+                tolerances=_V3_PROFILE_VALIDATION_TOLERANCES,
+            )
+            if prebuilt_profile is not None else list(_V3_AGGREGATE_PROFILE_KEYS)
+        )
+        # A one-hundredth Sharpe rounding difference can change which otherwise
+        # tied combo is selected as "best". That can make the aggregate MFE look
+        # materially different even when the prebuilt winning row itself is
+        # reproduced exactly from current raw prices. Accept only that narrow
+        # ordering case: identical qualifying sets, only best-row model fields
+        # differ, the authoritative best row independently validates, and its
+        # raw-price Sharpe is tied with the dynamic winner at display precision.
+        rounded_best_combo_tie = False
+        prebuilt_best_combo = (
+            prebuilt_aggregate_meta.get('best_combo')
+            if isinstance(prebuilt_aggregate_meta, dict) else None
+        )
+        dynamic_best_combo = (
+            aggregate_meta.get('best_combo')
+            if isinstance(aggregate_meta, dict) else None
+        )
+        if (
+            qualifying_sets_match
+            and prebuilt_best_combo in prebuilt_rows
+            and prebuilt_best_combo in dynamic_rows
+            and dynamic_best_combo in dynamic_rows
+            and prebuilt_best_combo != dynamic_best_combo
+            and model_differences
+            and set(model_differences).issubset({
+                'pat_sharpe_ratio', 'pat_avg_profit2',
+            })
+        ):
+            authoritative_row_differences = self._profile_value_differences(
+                prebuilt_rows[prebuilt_best_combo],
+                dynamic_rows[prebuilt_best_combo],
+                keys=_V3_BEST_COMBO_MODEL_KEYS,
+                tolerances=_V3_PROFILE_VALIDATION_TOLERANCES,
+            )
+            dynamic_winner_sharpe = float(
+                dynamic_rows[dynamic_best_combo]['sharpe_ratio'])
+            authoritative_candidate_sharpe = float(
+                dynamic_rows[prebuilt_best_combo]['sharpe_ratio'])
+            rounded_best_combo_tie = (
+                not authoritative_row_differences
+                and abs(
+                    dynamic_winner_sharpe - authoritative_candidate_sharpe
+                ) <= _V3_ROUNDED_SHARPE_TIE_TOLERANCE
+            )
+        if rounded_best_combo_tie:
+            model_differences = []
+        values_match = not model_differences
+        if not qualifying_sets_match or prebuilt_profile is None or not values_match:
+            raise PatternProfileUnavailable(
+                'prebuilt_profile_mismatch',
+                {
+                    'dynamic_combo_count': len(dynamic_rows),
+                    'prebuilt_combo_count': len(prebuilt_rows),
+                    'qualifying_sets_match': qualifying_sets_match,
+                    'model_values_match': values_match,
+                    'mismatched_model_fields': model_differences,
+                    'dynamic_best_combo': dynamic_best_combo,
+                    'prebuilt_best_combo': prebuilt_best_combo,
+                },
+            )
+        # The dynamic rebuild proves the checkpoint's qualifying combo set. The
+        # on-disk row values are then used for exact V3 training parity, including
+        # rounded-Sharpe tie behavior and generator rounding.
+        served_profile = prebuilt_profile
+        prebuilt_validated = True
+        source = 'dynamic_recalculation_validated'
+
+        for key, value in served_profile.items():
+            if key in nullable and not math.isfinite(float(value)):
+                continue
+            if not math.isfinite(float(value)):
+                raise PatternProfileUnavailable(
+                    'nonfinite_pattern_profile', {'feature': key})
+
+        result = (
+            served_profile,
+            {
+                'source': source,
+                'prebuilt_validated': prebuilt_validated,
+                'profile_validation': (
+                    'rounded_tie_authoritative'
+                    if rounded_best_combo_tie
+                    else 'bounded_authoritative'
+                    if strict_differences
+                    else 'exact'
+                ),
+                'reconciled_model_fields': strict_differences,
+                'dynamic_best_combo': dynamic_best_combo,
+                'prebuilt_best_combo': prebuilt_best_combo,
+                'qualifying_combo_count': len(dynamic_rows),
+                'prebuilt_combo_count': len(prebuilt_rows),
+                'profile_hash': self._profile_hash(served_profile),
+                'dynamic_profile_hash': self._profile_hash(dynamic_profile),
+                'data_as_of': str(price_df.index[-1])[:10],
+                'price_path': price_path,
+                'best_combo': prebuilt_aggregate_meta['best_combo'],
+                # Internal-only support for pat_concurrent_count; app.py omits
+                # these raw pairs from the public response.
+                '_active_pairs': snapshot['active_pairs'],
+                '_active_pairs_by_date': snapshot.get(
+                    'active_pairs_by_date', {date_str: snapshot['active_pairs']}),
+                'actual_entry_date': actual_entry.strftime('%Y-%m-%d'),
+                'concurrent_nominal_dates': list(concurrent_dates),
+                'nullable_features': sorted(
+                    key for key in nullable
+                    if not math.isfinite(float(served_profile[key]))),
+            },
+        )
+        self._lru_put(
+            self._recalculated_profile_cache,
+            cache_key,
+            result,
+            CONTEXT_PROFILE_CACHE_MAX,
+        )
+        return result
+
     def compute_pattern_features(self, symbol, date, daysOut, direction):
         """
         Group 1: Pattern-Intrinsic features (23 V1 + 8 V2).
@@ -417,28 +1496,9 @@ class FeatureEngine:
                 best_combo = combo_name
                 best_row = row
 
-        # V1 NaN-fill keys
-        v1_nan_keys = [
-            'sharpe_ratio', 'avg_profit', 'median_profit', 'avg_profit2',
-            'mfe_ratio', 'profit_per_day', 'sharpe_per_day',
-            'daysOut', 'daysOut_bucket', 'direction',
-            'data_years', 'deepest_pass', 'depth_utilization',
-            'passes_at_max_depth', 'passes_recent_10', 'recent_vs_deep_sharpe',
-            'num_combos_qualifying',
-            'pe_match', 'pe_deepest', 'pe_utilization',
-            'best_winrate', 'worst_winrate', 'deepest_pass_capped30',
-        ]
-        # V2 NaN-fill keys
-        v2_nan_keys = [
-            'consistency_std', 'concurrent_count',
-            'neighbor_avg_wr', 'sharpness', 'pre_slope', 'post_cliff',
-            'hit_last_year',
-        ]
-
         if best_row is None:
             # Pattern not found in any combo
-            nan_dict = {f'pat_{k}': np.nan for k in v1_nan_keys + v2_nan_keys}
-            return nan_dict
+            return self._empty_pattern_profile()
 
         # Get data_years from price CSV
         price_df = self._get_price_df(symbol)
@@ -1275,7 +2335,8 @@ class FeatureEngine:
 
         # V3: Commodity / FX regime -- 20-day ROC for DXY, CL, GC
         for _sym, _feat in [('DXY', 'mkt_dxy_roc_20'), ('CL', 'mkt_cl_roc_20'), ('GC', 'mkt_gc_roc_20')]:
-            _df = self._get_price_df(_sym)
+            _df = (self._get_commodity_price_df(_sym)
+                   if _sym in ('CL', 'GC') else self._get_price_df(_sym))
             if _df is not None:
                 _sub = _df[_df.index <= date].tail(30)
                 if len(_sub) >= 21:
@@ -1448,14 +2509,23 @@ class FeatureEngine:
             year = pd.Timestamp.now().year
         end_year = year - 1
 
-        # Check cache (keyed by end_year)
+        path = os.path.join(CSV_DIR, 'INDX', 'SPX.csv')
+        source_version = None
+        if os.path.exists(path):
+            stat = os.stat(path)
+            source_version = (
+                path, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+
+        # Check cache by both training cutoff and file generation. This keeps
+        # same-date EOD corrections aligned with the live metadata identity.
         if self._spx_seasonal_lookup is not None and isinstance(self._spx_seasonal_lookup, dict):
-            if self._spx_seasonal_lookup.get('_end_year') == end_year:
+            if (self._spx_seasonal_lookup.get('_end_year') == end_year
+                    and self._spx_seasonal_lookup.get('_source_version') == source_version):
                 return self._spx_seasonal_lookup
 
-        path = os.path.join(CSV_DIR, 'INDX', 'SPX.csv')
         if not os.path.exists(path):
-            self._spx_seasonal_lookup = {'_end_year': end_year}
+            self._spx_seasonal_lookup = {
+                '_end_year': end_year, '_source_version': source_version}
             return self._spx_seasonal_lookup
 
         df = pd.read_csv(path, index_col=0)
@@ -1464,7 +2534,8 @@ class FeatureEngine:
         df = df[(df.index.year >= 1960) & (df.index.year <= end_year)]
 
         if len(df) < 500:
-            self._spx_seasonal_lookup = {'_end_year': end_year}
+            self._spx_seasonal_lookup = {
+                '_end_year': end_year, '_source_version': source_version}
             return self._spx_seasonal_lookup
 
         closes = df['close'].values
@@ -1479,7 +2550,10 @@ class FeatureEngine:
         weeks = np.array([d.isocalendar()[1] for d in dates])
         pe_phases = np.array([get_pe_year(d.year) for d in dates])
 
-        lookup = {'_end_year': end_year}
+        lookup = {
+            '_end_year': end_year,
+            '_source_version': source_version,
+        }
         for wk in range(1, 54):
             for pe in range(1, 5):
                 mask = (weeks == wk) & (pe_phases == pe) & ~np.isnan(fwd_returns)
@@ -1504,7 +2578,7 @@ class FeatureEngine:
             date = pd.Timestamp(date)
 
         lookup = self._get_spx_seasonal_lookup(year=date.year)
-        if len(lookup) <= 1:  # only _end_year key
+        if len(lookup) <= 2:  # only internal cache metadata keys
             features['mkt_spx_seasonal_wr'] = np.nan
             features['mkt_spx_seasonal_ret'] = np.nan
             features['mkt_spx_seasonal_regime'] = np.nan
@@ -1626,6 +2700,79 @@ class FeatureEngine:
     # Main entry point
     # ------------------------------------------------------------------
 
+    def _assemble_features(self, symbol, date, daysOut, dir_char, pat):
+        """Combine a supplied pattern profile with the remaining V3 groups."""
+        ta = self.compute_technical_features(symbol, date)
+        mkt = self.compute_market_regime_features(date)
+        ctx = self.compute_stock_context_features(symbol, date)
+        cal = self.compute_calendar_features(date)
+        spx = self.compute_spx_seasonal_features(date, dir_char)
+
+        # Set trend_direction_match now that we know direction.
+        if not np.isnan(ta.get('ta_trend_long', np.nan)):
+            if dir_char == 'l':
+                if ta['ta_trend_long'] >= 60:
+                    ta['ta_trend_direction_match'] = 1
+                elif ta['ta_trend_long'] <= 40:
+                    ta['ta_trend_direction_match'] = -1
+                else:
+                    ta['ta_trend_direction_match'] = 0
+            else:
+                if ta['ta_trend_short'] >= 60:
+                    ta['ta_trend_direction_match'] = 1
+                elif ta['ta_trend_short'] <= 40:
+                    ta['ta_trend_direction_match'] = -1
+                else:
+                    ta['ta_trend_direction_match'] = 0
+
+        features = {}
+        features.update(pat)
+        features.update(ta)
+        features.update(mkt)
+        features.update(ctx)
+        features.update(cal)
+        features.update(spx)
+        features.update(self.compute_interaction_features(
+            features, symbol, date, daysOut, dir_char))
+        return features
+
+    def compute_recalculated_features(self, resource_id, symbol, date,
+                                      daysOut, direction):
+        """Compute 62 V3 inputs with a freshly rebuilt exact-horizon profile."""
+        if isinstance(date, str):
+            date = pd.Timestamp(date)
+        dir_char = direction[0].lower()
+        profile, profile_meta = self.compute_recalculated_pattern_profile(
+            resource_id, symbol, date, daysOut, dir_char)
+        price_df = self._get_price_df(symbol)
+
+        pat = dict(profile)
+        if profile_meta.get('profile_state') == 'no_qualifying_profile':
+            # Preserve exact parity with POST /score for arbitrary durations:
+            # the absence of a qualifying profile is represented by missing
+            # pattern fields, while technical/market/calendar inputs remain
+            # available to the model.
+            return self._assemble_features(
+                symbol, date, int(daysOut), dir_char, pat), profile_meta
+
+        pat['pat_daysOut'] = int(daysOut)
+        active_pairs_by_date = profile_meta.get('_active_pairs_by_date') or {
+            str(date)[:10]: set(profile_meta.get('_active_pairs', set()))
+        }
+        pat['pat_concurrent_count'] = self._context_concurrent_count(
+            active_pairs_by_date, int(daysOut))
+
+        neighborhood = self._compute_neighborhood_features(
+            symbol, date, int(daysOut), dir_char, price_df)
+        pat.update(neighborhood)
+        pat['pat_hit_last_year'] = self._compute_hit_last_year(
+            symbol, date, int(daysOut), dir_char, price_df)
+
+        return (
+            self._assemble_features(symbol, date, int(daysOut), dir_char, pat),
+            profile_meta,
+        )
+
     def compute_features(self, symbol, date, daysOut, direction):
         """
         Compute all features for a single opportunity (V1 + V2).
@@ -1646,45 +2793,10 @@ class FeatureEngine:
         # Ensure price data loaded
         self.load_price_data([symbol])
 
-        # Compute all groups
+        # Compute the legacy prebuilt pattern profile.  /score/context uses the
+        # additive resource-aware recalculation method above instead.
         pat = self.compute_pattern_features(symbol, date, daysOut, dir_char)
-        ta = self.compute_technical_features(symbol, date)
-        mkt = self.compute_market_regime_features(date)
-        ctx = self.compute_stock_context_features(symbol, date)
-        cal = self.compute_calendar_features(date)
-        spx = self.compute_spx_seasonal_features(date, dir_char)
-
-        # Set trend_direction_match now that we know direction
-        if not np.isnan(ta.get('ta_trend_long', np.nan)):
-            if dir_char == 'l':
-                if ta['ta_trend_long'] >= 60:
-                    ta['ta_trend_direction_match'] = 1
-                elif ta['ta_trend_long'] <= 40:
-                    ta['ta_trend_direction_match'] = -1
-                else:
-                    ta['ta_trend_direction_match'] = 0
-            else:
-                if ta['ta_trend_short'] >= 60:
-                    ta['ta_trend_direction_match'] = 1
-                elif ta['ta_trend_short'] <= 40:
-                    ta['ta_trend_direction_match'] = -1
-                else:
-                    ta['ta_trend_direction_match'] = 0
-
-        # Merge all V1 feature groups
-        features = {}
-        features.update(pat)
-        features.update(ta)
-        features.update(mkt)
-        features.update(ctx)
-        features.update(cal)
-        features.update(spx)
-
-        # Compute V2 interaction features from the merged feature dict
-        interactions = self.compute_interaction_features(features, symbol, date, daysOut, dir_char)
-        features.update(interactions)
-
-        return features
+        return self._assemble_features(symbol, date, daysOut, dir_char, pat)
 
     def compute_label(self, symbol, date, daysOut, direction):
         """

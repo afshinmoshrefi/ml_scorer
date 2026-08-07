@@ -23,6 +23,7 @@ ml_scorer/
   daily_opp_selection.py    # /select pipeline: parquet load, pre-filter, score, rank
   opp_to_parquet.py         # Nightly: build ml_cache_YYYY-MM-DD.parquet per market
   nightly.sh                # Cron script: runs opp_to_parquet.py for all markets
+  sync_dev_data.sh          # DEV-only marker-gated price-data sync from TradeWave
   warmup_cache.py           # Warms up price data cache after service restart
   requirements.txt          # pip install -r requirements.txt
   CLAUDE.md                 # This file
@@ -56,6 +57,12 @@ systemctl restart ml_scorer
 | `ML_SCORER_HOST` | No | `0.0.0.0` | Flask bind address |
 | `ML_SCORER_PORT` | No | `5090` | Flask port |
 | `ML_SCORER_EARNINGS_DIR` | No | `{DATA_DIR}/../edgar/earnings` | Earnings date JSONs |
+| `ML_SCORER_CONTEXT_TARGET_CACHE_MAX` | No | `64` | Resource-qualified target price frames retained by `/score/context` |
+| `ML_SCORER_CONTEXT_SNAPSHOT_CACHE_MAX` | No | `64` | Exact-date opportunity snapshots retained by `/score/context` |
+| `ML_SCORER_CONTEXT_PROFILE_CACHE_MAX` | No | `384` | Recalculated checkpoint profiles retained by `/score/context` |
+| `ML_SCORER_CONTEXT_MAX_BATCH_ITEMS` | No | `60` | Maximum checkpoint items in one request |
+| `ML_SCORER_CONTEXT_MAX_BATCH_IDENTITIES` | No | `15` | Maximum distinct resource/symbol/date identities in one request |
+| `ML_SCORER_DEV_DATA_SOURCE` | DEV sync only | none | Must be `root@192.168.1.176`; enables the marker-gated standalone-scorer data pull |
 
 ### Production Server
 
@@ -73,7 +80,7 @@ systemctl restart ml_scorer
 ```
 {ML_SCORER_DATA_DIR}/
   csv/US/                    # Stock price CSVs (OHLCV, ~3500 files, back to 1981+)
-  csv/ETF/                   # ETF CSVs (SPY, QQQ, sector ETFs, VIX-related, etc.)
+  csv/ETF/                   # ETF CSVs (SPY, credit/sector ETFs, TLT, etc.)
   csv/INDX/                  # Index CSVs (VIX, VIX3M, US10Y, US2Y, IRX, ADVN, DECN, SPX, DXY)
   csv/COMM/                  # Commodity CSVs (CL crude oil, GC gold)
   sp500/opp_by_symbol/       # 475 dirs (one per S&P stock), 116 gzip CSVs each
@@ -144,6 +151,65 @@ Score one or multiple opportunities. `tier` is optional -- auto-detected from `d
 - `ml_score` -- 0-100 percentile rank (higher = stronger prediction)
 - `tier` -- which tier was used for this result
 
+### POST /score/context
+
+Additive TradeWave duration-comparison endpoint. Legacy `POST /score` remains unchanged.
+This endpoint recalculates the pattern's full V3 all-qualifying-combo profile
+at one exact inclusive calendar window before scoring it. Its context contract is
+`duration-comparison-context-v5` and its pattern-profile schema is
+`all-qualifying-combos-v2`.
+
+```json
+{
+  "resource_id": "2",
+  "symbol": "AAPL",
+  "date": "2026-08-05",
+  "calendar_days": 30,
+  "direction": "l",
+  "years": "20",
+  "partial": {"selection": {"min_winning_years": "17"}, "mode": "consecutive", "requested_years": "20"}
+}
+```
+
+`calendar_days` is strictly 30, 60, or 90. The entry day is day 1, so the
+service derives raw `daysOut` as 29, 59, or 89 and derives the model tier. A
+caller-supplied `daysOut` or tier is rejected. `years` and `partial` are
+preserved in cache identity and used to recalculate the selected consecutive- or
+PE-cycle cohort at that duration. V3 was trained on the full all-combo profile,
+not on a user-selected years cohort, so the selected cohort is explanatory
+evidence and does not replace or gate the learned feature values.
+
+Only TradeWave US stock/ETF resources `0`, `1`, `2`, `3`, `4`, and `11` are
+accepted. DXY, crude `CL`, and gold `GC` remain internal regime inputs. The
+crude series has a separate cache namespace so equity ticker `CL` is not
+shadowed.
+
+The scorer enumerates the symbol's actual combo files, recomputes each
+completed observation from raw adjusted OHLC data, applies the real combo
+threshold, aggregates the same profile fields used in V3 training, and then
+computes the other feature groups. A matching prebuilt exact-horizon profile
+is reused only after the raw-price result validates it. If both the raw rebuild
+and the prebuilt opportunity data prove that the qualifying set is empty, that
+validated absence is still scoreable: the pattern fields use the same missing-
+profile representation as the existing manual `POST /score` workflow, while the
+stock, market, calendar, and other available fields remain unchanged. A one-sided
+row, an unverified mismatch, or missing required raw price data remains unavailable.
+
+Before model inference, the scorer recomputes the requested cohort's completed
+direction-adjusted observations. Every item with a validated qualifying profile
+or validated empty-profile state proceeds through the unchanged 62-feature
+ensemble. Its `selected_recurrence`
+summary separately reports `qualified`, `below_threshold`, or
+`insufficient_history` with the available sample evidence. A failed table-screen
+recurrence therefore remains visible beside the model reading but does not erase
+it or become numeric zero.
+
+Batch input uses `{"opportunities": [...]}`. A request can contain at most 60
+items and 15 distinct resource/symbol/date identities. Responses use the normal
+`results`/`tiers_used` wrapper and add model/data/schema metadata, a profile
+hash, the ordered 62-feature vector hash, and a full context hash. A VIX block
+is a stable non-retryable unavailable result for that data version.
+
 ### POST /select
 
 Find and score today's best opportunities from the nightly parquet cache.
@@ -168,7 +234,16 @@ Find and score today's best opportunities from the nightly parquet cache.
 Requires nightly parquet cache. Returns error if parquet missing for the requested date.
 
 ### GET /health
-Returns `status`, `tiers`, `feature_count` (62), `uptime_seconds`, `vix_cutoff`.
+Returns `status`, `tiers`, `feature_count` (62), `uptime_seconds`, `vix_cutoff`,
+model release, feature/context/profile schema versions and hashes, artifact
+manifest hash, and the live common `data_as_of` date. It also reports the
+complete 26-series shared-input manifest identity, process data-generation
+identity, completeness flag, and any missing sources. Those sources include
+SPY, credit/sector ETFs, TLT, VIX/yields/breadth/DXY/SPX, CL, and GC.
+
+### GET /metadata
+Returns the service metadata plus the SHA-256 manifest for all 18 model and 6
+calibration artifacts.
 
 ### GET /tiers
 Returns list of available tier names.
@@ -202,7 +277,54 @@ Returns list of available tier names.
 - `_opp_cache`: (symbol, date_str) -> combos dict. Targeted scan, 5 dates only. Small per entry.
 - `_parquet_by_symbol`: symbol -> DataFrame. Reset on date change. One day's data only.
 - `_market_cache`: regime indicators by date. Grows slowly.
+- `_commodity_price_cache`: DXY-adjacent commodity context keyed separately
+  from target equities, preventing the `CL` ticker collision.
 - `_ta_cache`: technical indicators by (symbol, date).
+- `_context_target_cache`: resource-qualified target DataFrames, LRU-bounded
+  (64 by default). Eviction also releases non-market target frames from
+  `_price_cache`.
+- `_context_opp_snapshot_cache`: exact-date all-combo snapshots, LRU-bounded
+  (64 by default).
+- `_recalculated_profile_cache`: checkpoint profiles, LRU-bounded (384 by
+  default, enough for three horizons per retained snapshot identity).
+- `_selected_recurrence_cache`: selected consecutive/PE cohort summaries,
+  LRU-bounded by the same profile-cache limit.
+
+Target, combo, market, commodity, and SPX seasonal caches include file ctime in
+their source version. This detects same-date file corrections even when mtime
+and file size were preserved. TradeWave Redis remains the durable daily cache;
+the scorer process caches only the bounded hot working set.
+
+### Standalone DEV scorer data freshness
+
+The standalone V3 development scorer does not share a filesystem with the
+TradeWave development app box. `sync_dev_data.sh` is the dev-only bridge used
+before TradeWave's nightly AI-score prefetch window. It first downloads the app
+box's authoritative EOD readiness marker and runs that release's own validator
+on the app box with its application environment. Only then does it incrementally
+rsync the US, ETF, index, and commodity CSV directories, without deletion. It
+verifies all 26 shared V3 inputs against the completed US session, proves the
+marker did not change during transfer, restarts the scorer to clear process
+caches, and records the completed generation under `/var/lib/ml_scorer/`.
+
+The dev root cron retries at 03:40, 04:40, and 05:40 UTC Tuesday-Saturday:
+
+```cron
+40 3-5 * * 2-6 ML_SCORER_DEV_DATA_SOURCE=root@192.168.1.176 /usr/bin/flock -n /run/lock/ml-scorer-dev-data-sync-cron.lock /home/flask/ml_scorer/sync_dev_data.sh >> /var/log/ml_scorer_data_sync.log 2>&1
+```
+
+A missing, stale, incomplete, or changing marker is a successful deferred
+no-op. The script never fabricates readiness and never weakens TradeWave's
+requirement that scorer `data_as_of` exactly match the completed US session.
+
+**Correction rule:** restart `ml_scorer` after any same-day correction to a
+target security CSV or opportunity-definition file, before allowing TradeWave
+to warm or serve the corrected score. Those per-symbol files are deliberately
+not part of the shared 26-series health manifest; the restart changes the
+process data-generation identity so downstream `ml6` pointers cannot reuse a
+pre-correction score. Shared-context file corrections change their ctime-based
+manifest identity too, but the same restart rule is the safest operational
+procedure for every correction.
 
 ### Feature Validation
 
