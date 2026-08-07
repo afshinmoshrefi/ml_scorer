@@ -16,13 +16,16 @@ Self-contained Flask service that scores TradeWave seasonal stock/ETF pattern op
 
 ```
 ml_scorer/
-  app.py                    # Flask app: POST /score, POST /select, GET /health, GET /tiers
+  app.py                    # Flask: /score, /score/context, /select, /health, /metadata, /tiers
+  context_contract.py       # Validates the additive checkpoint-scoring contract
   config.py                 # Configuration: paths, tiers, 62 feature columns, ML_PARQUET_MARKETS
   feature_engine.py         # Computes all 62 features for a single opportunity
   scorer.py                 # ModelEnsemble: loads models, averages predictions, calibrates
   daily_opp_selection.py    # /select pipeline: parquet load, pre-filter, score, rank
   opp_to_parquet.py         # Nightly: build ml_cache_YYYY-MM-DD.parquet per market
   nightly.sh                # Cron script: runs opp_to_parquet.py for all markets
+  preflight.py              # Model provenance, feature-order, range, and level gates
+  training_bounds.json      # Recorded training ranges used by preflight.py
   sync_dev_data.sh          # DEV-only marker-gated price-data sync from TradeWave
   warmup_cache.py           # Warms up price data cache after service restart
   requirements.txt          # pip install -r requirements.txt
@@ -35,19 +38,26 @@ ml_scorer/
 
 ## Deployment
 
-### Quick Start
+### Development-server release deployment
 
 ```bash
-# 1. Copy this entire ml_scorer/ folder to the production machine
-scp -r ml_scorer/ flask@104.238.214.253:/home/flask/ml_scorer/
-
-# 2. Install dependencies
-cd /home/flask/ml_scorer
-pip install -r requirements.txt
-
-# 3. Restart the systemd service
-systemctl restart ml_scorer
+# Run from a clean, committed worktree on the standalone dev scorer host.
+# The artifact source must be a previously verified model/calibration release.
+cd /path/to/ml_scorer/ml_scorer
+ML_SCORER_ARTIFACT_SOURCE=/home/flask/.ml-scorer-releases/<verified-release> \
+ML_SCORER_ROLLBACK_TARGET=/home/flask/.ml-scorer-releases/<clean-rollback> \
+./deploy.sh deploy
 ```
+
+`deploy.sh` runs the context contract/parity tests, checks the model feature
+order and live feature ranges, packages every tracked service file into a new
+commit-named release, and validates both `/score` and `/score/context`. Only
+then does it atomically move `/home/flask/ml_scorer` to the candidate and
+restart the one-worker service. A failed post-activation check automatically
+restores the clean rollback target.
+
+Never copy code into `/home/flask/ml_scorer`. That path is the active symlink,
+so copying through it mutates the named release and makes rollback unreliable.
 
 ### Environment Variables
 
@@ -67,7 +77,7 @@ systemctl restart ml_scorer
 ### Production Server
 
 - Host: prodkeyprovider at 104.238.214.253, port 7675 (nginx reverse proxy)
-- Ubuntu 20.04, Python 3.12, 4GB RAM, 2GB swap
+- Python 3.12; keep the development service at one worker
 - systemd service: `ml_scorer` -- `systemctl restart ml_scorer`
 - gunicorn: **1 worker**, 300s timeout, Unix socket
 - Working dir: `/home/flask/ml_scorer`

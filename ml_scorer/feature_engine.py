@@ -1568,11 +1568,8 @@ class FeatureEngine:
         else:
             features['pat_consistency_std'] = 0.0
 
-        # pat_concurrent_count: total unique (daysOut, direction) patterns active for
-        # this symbol on this date, including self. Scan ALL combos for correctness.
-        # Matches training: date_pattern_counter counts all qualifying patterns on entry_date.
-        # Scan a SINGLE representative combo, matching how
-        # build_training_data.py builds date_pattern_counter for the tier.
+        # pat_concurrent_count: scan one representative combo, matching how
+        # build_training_data.py constructs date_pattern_counter for the tier.
         # Taking the union across every combo (the previous behaviour) inflated
         # this ~6x: measured live mean 283.8 / max 360 against a training range
         # of mean 43.1 / max 238 (stable across all 26 training years, so this

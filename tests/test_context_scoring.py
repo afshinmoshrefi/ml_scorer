@@ -764,7 +764,12 @@ class RealDataParityTests(unittest.TestCase):
             if not (math.isfinite(float(left)) and math.isfinite(float(right))):
                 self.assertTrue(math.isnan(float(left)) and math.isnan(float(right)), name)
             else:
-                self.assertAlmostEqual(float(left), float(right), places=10, msg=name)
+                # Prebuilt opportunity rows are stored with float32 precision,
+                # while the recalculated path keeps Python float precision.
+                # A 1e-7 absolute tolerance catches material feature drift but
+                # accepts the expected storage-rounding difference.
+                self.assertAlmostEqual(
+                    float(left), float(right), delta=1e-7, msg=name)
 
         patterns = set()
         opp_dir = REAL_DATA_ROOT / 'sp500/opp_by_symbol/AAPL'
@@ -792,9 +797,19 @@ class RealDataParityTests(unittest.TestCase):
             context_features['pat_concurrent_count'],
             float(expected_concurrent),
         )
-        self.assertNotEqual(
-            context_features['pat_concurrent_count'],
+        # The legacy route intentionally follows training's first
+        # representative combo, while the context route uses its independently
+        # validated tier-bounded active-pair snapshot. Their numeric values can
+        # coincide for a particular data generation, so validate each source
+        # instead of requiring an incidental difference.
+        legacy_combos = engine._load_opp_files(
+            'AAPL', date_hint='2026-08-05')
+        first_lookup = next(iter(legacy_combos.values()), {})
+        expected_legacy_concurrent = sum(
+            1 for key in first_lookup if key[0] == '2026-08-05')
+        self.assertEqual(
             legacy_features['pat_concurrent_count'],
+            float(expected_legacy_concurrent),
         )
 
         intentional_nulls = {

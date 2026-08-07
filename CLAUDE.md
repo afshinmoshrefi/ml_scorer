@@ -87,7 +87,10 @@ ml_scorer/                          # Root -- training pipeline
 
 ### Production Service (ml_scorer/ package)
 
-Self-contained Flask app. Deploy by copying the `ml_scorer/` folder.
+Self-contained Flask app. On the standalone development host, deploy only with
+`ml_scorer/deploy.sh`; it creates a fresh commit-named release and atomically
+updates the active symlink after tests and preflight checks pass. Never copy
+files through `/home/flask/ml_scorer`, because it is the active symlink.
 
 **Endpoints:**
 - `POST /score` -- Score one or batch of opportunities. Input: symbol, date, daysOut, direction, tier (optional). Output: pred_return, pred_mfe, win_prob, p_hit_return, p_hit_mfe, ml_score (0-100), tier.
@@ -102,7 +105,7 @@ After any same-day correction to a target-security CSV or opportunity file,
 restart `ml_scorer` before downstream warming or scoring. The restart advances
 the process data-generation identity used by TradeWave's versioned Redis cache.
 
-**Deployment:**
+**Local run:**
 ```bash
 # Only one env var needed -- all paths derive from it
 export ML_SCORER_DATA_DIR=/home/flask/data
