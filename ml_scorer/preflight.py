@@ -31,6 +31,7 @@ Checks:
                 ensemble average
 """
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -44,8 +45,8 @@ except ImportError:                                          # pragma: no cover
 BOUNDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            'training_bounds.json')
 
-# A member whose mean prediction falls outside this multiple of the training
-# mean is treated as collapsed. The 31_60 XGBoost failure sat at -0.07x.
+# A member whose mean prediction falls outside this multiple of the member
+# median is treated as collapsed. The 31_60 XGBoost failure sat at -0.07x.
 LEVEL_LO, LEVEL_HI = 0.35, 2.5
 # Fraction of sampled opportunities allowed outside the training range before a
 # feature is reported at all.
@@ -164,13 +165,79 @@ def check_feature_order(r):
 def _sample_opportunities(tier, lo, hi, n, date):
     import pandas as pd
     path = os.path.join(C.DATA_DIR, 'sp500', f'ml_cache_{date}.parquet')
-    if not os.path.exists(path):
+    if not os.path.exists(path) or n <= 0:
         return []
     df = pd.read_parquet(path)
     df = df[(df['date'].astype(str) == date) &
             (df['daysOut'] >= lo) & (df['daysOut'] <= hi)]
-    df = df.drop_duplicates(subset=['sym', 'daysOut', 'LorS']).head(n)
-    return [(r.sym, int(r.daysOut), r.LorS) for r in df.itertuples()]
+    identities = {
+        (str(r.sym), int(r.daysOut), str(r.LorS))
+        for r in df.itertuples()
+    }
+    if not identities:
+        return []
+
+    def stable_rank(item):
+        payload = '\x1f'.join((item[0], str(item[1]), item[2])).encode('utf-8')
+        return hashlib.sha256(payload).digest()
+
+    groups = {}
+    for item in identities:
+        groups.setdefault(item[2], []).append(item)
+    for items in groups.values():
+        items.sort(key=stable_rank)
+
+    target = min(n, len(identities))
+    total = len(identities)
+    raw_quotas = {
+        direction: target * len(items) / total
+        for direction, items in groups.items()
+    }
+    quotas = {
+        direction: min(len(groups[direction]), int(raw_quotas[direction]))
+        for direction in groups
+    }
+
+    # Direction is a learned feature. Preserve its live population mix while
+    # guaranteeing coverage of every present direction when the sample allows
+    # it. Parquet row order is not a sampling contract and is commonly grouped
+    # by direction, which made the former head(n) gate evaluate all-long rows.
+    minimum = 1 if target >= len(groups) else 0
+    if minimum:
+        for direction in quotas:
+            quotas[direction] = max(minimum, quotas[direction])
+
+    while sum(quotas.values()) > target:
+        candidates = [
+            direction for direction, quota in quotas.items()
+            if quota > minimum
+        ]
+        direction = max(
+            candidates,
+            key=lambda name: (
+                quotas[name] - raw_quotas[name], quotas[name], name),
+        )
+        quotas[direction] -= 1
+
+    while sum(quotas.values()) < target:
+        candidates = [
+            direction for direction, quota in quotas.items()
+            if quota < len(groups[direction])
+        ]
+        direction = max(
+            candidates,
+            key=lambda name: (
+                raw_quotas[name] - quotas[name],
+                len(groups[name]) - quotas[name],
+                name,
+            ),
+        )
+        quotas[direction] += 1
+
+    selected = []
+    for direction in sorted(groups):
+        selected.extend(groups[direction][:quotas[direction]])
+    return sorted(selected, key=stable_rank)
 
 
 def check_live(r, date, n):
@@ -194,6 +261,13 @@ def check_live(r, date, n):
         if not opps:
             r.warn('ranges', f'{tier}: no opportunities for {date} -- skipped')
             continue
+        directions = {name: 0 for name in sorted({item[2] for item in opps})}
+        for _, _, direction in opps:
+            directions[direction] += 1
+        r.ok('sample', f'{tier}: deterministic representative sample '
+                        f'({len(opps)} opportunities; directions={directions}; '
+                        f'days={min(item[1] for item in opps)}-'
+                        f'{max(item[1] for item in opps)})')
         engine.load_price_data(sorted({s for s, _, _ in opps}))
         X = []
         for sym, days, dirn in opps:
@@ -249,7 +323,6 @@ def _check_levels(r, tier, X, cols, tb):
         return
 
     cfg = C.TIERS[tier]['sr']
-    ref = tb.get('_target_mean')
     preds = {}
     try:
         m = lgb.Booster(model_file=os.path.join(C.MODEL_DIR, cfg['lgb']))

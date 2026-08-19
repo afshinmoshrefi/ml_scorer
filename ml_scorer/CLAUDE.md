@@ -56,6 +56,12 @@ then does it atomically move `/home/flask/ml_scorer` to the candidate and
 restart the one-worker service. A failed post-activation check automatically
 restores the clean rollback target.
 
+The live preflight sample is deterministic, independent of parquet row order,
+and proportional across the available long/short directions. Direction is a
+learned feature, so taking the first rows of a direction-grouped parquet is not
+a valid ensemble-level gate. The member-level collapse thresholds themselves
+remain fail-closed and unchanged.
+
 Never copy code into `/home/flask/ml_scorer`. That path is the active symlink,
 so copying through it mutates the named release and makes rollback unreliable.
 
