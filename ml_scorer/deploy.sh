@@ -196,6 +196,24 @@ run_candidate_preflight() {
   )
 }
 
+validate_runtime_mappings() {
+  local release=$1
+  (
+    cd "$release"
+    env \
+      PYTHONDONTWRITEBYTECODE=1 \
+      ML_SCORER_DATA_DIR="$DATA_DIR" \
+      ML_SCORER_SKIP_INIT=1 \
+      "$PYTHON" - <<'PY'
+from config import ETF_SECTOR, TICKER_SECTOR
+
+assert TICKER_SECTOR.get('AAPL') == 'Information Technology', TICKER_SECTOR.get('AAPL')
+assert ETF_SECTOR.get('TLT') == 'Fixed Income', ETF_SECTOR.get('TLT')
+print('runtime market mappings: ok')
+PY
+  )
+}
+
 case "$MODE" in
   check)
     active=$(resolve_release "$ACTIVE_LINK")
@@ -241,6 +259,7 @@ case "$MODE" in
     [ ! -e "$release" ] || fail "release already exists and will not be overwritten: $release"
 
     for path in \
+      config_ml.py \
       ml_scorer/app.py \
       ml_scorer/config.py \
       ml_scorer/context_contract.py \
@@ -268,8 +287,9 @@ case "$MODE" in
 
     STAGE_ROOT=$(mktemp -d "$RELEASE_ROOT/.stage-${sha}.XXXXXX")
     chmod 0755 "$STAGE_ROOT"
-    git -C "$REPO_ROOT" archive "$sha" ml_scorer | tar -x -C "$STAGE_ROOT"
+    git -C "$REPO_ROOT" archive "$sha" config_ml.py ml_scorer | tar -x -C "$STAGE_ROOT"
     candidate="$STAGE_ROOT/ml_scorer"
+    mv -- "$STAGE_ROOT/config_ml.py" "$candidate/config_ml.py"
     cp -a "$artifact_source/models" "$candidate/models"
     rm -rf -- "$candidate/calibration"
     cp -a "$artifact_source/calibration" "$candidate/calibration"
@@ -297,6 +317,7 @@ case "$MODE" in
 
     "$PYTHON" -m compileall -q "$candidate"
     validate_route_map "$candidate"
+    validate_runtime_mappings "$candidate"
     cmp \
       <(cd "$artifact_source" && sha256sum models/* calibration/*.json) \
       <(cd "$candidate" && sha256sum models/* calibration/*.json)

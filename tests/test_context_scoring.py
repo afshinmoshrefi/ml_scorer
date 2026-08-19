@@ -163,6 +163,44 @@ class RecalculationUnitTests(unittest.TestCase):
             3.0,
         )
 
+    def test_legacy_concurrent_count_unions_combos_and_filters_to_model_tier(self):
+        row = {
+            'sharpe_ratio': 1.0,
+            'avg_profit': 1.0,
+            'median_profit': 1.0,
+            'avg_profit2': 1.0,
+        }
+        combos = OrderedDict([
+            ('10_8', {
+                ('2026-08-21', 10, 'l'): row,
+                ('2026-08-21', 31, 'l'): row,
+                ('2026-08-21', 61, 's'): row,
+            }),
+            ('20_18', {
+                # Duplicate patterns in a second year combo count once.
+                ('2026-08-21', 10, 'l'): row,
+                ('2026-08-21', 31, 'l'): row,
+                # This distinct 31-60 pattern must still be included.
+                ('2026-08-21', 60, 's'): row,
+            }),
+        ])
+
+        self.assertEqual(
+            self.engine._legacy_concurrent_count(
+                combos, '2026-08-21', 29),
+            1.0,
+        )
+        self.assertEqual(
+            self.engine._legacy_concurrent_count(
+                combos, '2026-08-21', 59),
+            2.0,
+        )
+        self.assertEqual(
+            self.engine._legacy_concurrent_count(
+                combos, '2026-08-21', 89),
+            1.0,
+        )
+
     def test_selected_recurrence_reports_below_threshold_with_sample_size(self):
         dates = pd.to_datetime(['2000-01-03', '2026-08-04'])
         price_df = pd.DataFrame({
@@ -774,9 +812,8 @@ class RealDataParityTests(unittest.TestCase):
         self.assertTrue(meta['prebuilt_validated'])
         self.assertEqual(meta['qualifying_combo_count'], 24)
 
-        # All shared feature computations remain identical. Concurrent count is
-        # asserted separately because the additive path fixes the legacy serving
-        # bug that counted patterns outside the model's training tier.
+        # All shared feature computations, including the training-tier-bounded
+        # concurrent count, must remain identical.
         # Resource-free legacy scoring can find a current parquet for another
         # index universe first when a stock belongs to several universes. Force
         # the shared S&P gzip definitions here so this is a feature-math parity
@@ -791,8 +828,6 @@ class RealDataParityTests(unittest.TestCase):
         self.assertEqual(len(FEATURE_COLS), 62)
         for name in FEATURE_COLS:
             self.assertIn(name, context_features)
-            if name == 'pat_concurrent_count':
-                continue
             left = context_features[name]
             right = legacy_features[name]
             if not (math.isfinite(float(left)) and math.isfinite(float(right))):
@@ -831,17 +866,15 @@ class RealDataParityTests(unittest.TestCase):
             context_features['pat_concurrent_count'],
             float(expected_concurrent),
         )
-        # The legacy route intentionally follows training's first
-        # representative combo, while the context route uses its independently
-        # validated tier-bounded active-pair snapshot. Their numeric values can
-        # coincide for a particular data generation, so validate each source
-        # instead of requiring an incidental difference.
-        first_lookup = next(iter(legacy_combos.values()), {})
-        expected_legacy_concurrent = sum(
-            1 for key in first_lookup if key[0] == '2026-08-05')
+        expected_legacy_concurrent = engine._legacy_concurrent_count(
+            legacy_combos, '2026-08-05', 29)
         self.assertEqual(
             legacy_features['pat_concurrent_count'],
             float(expected_legacy_concurrent),
+        )
+        self.assertEqual(
+            legacy_features['pat_concurrent_count'],
+            context_features['pat_concurrent_count'],
         )
 
         intentional_nulls = {

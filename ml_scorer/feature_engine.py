@@ -707,6 +707,24 @@ class FeatureEngine:
             if tier_min <= int(pair_days_out) <= tier_max
         ))
 
+    @classmethod
+    def _legacy_concurrent_count(cls, combos, date_str, days_out):
+        """Mirror the training counter for the legacy ``/score`` path.
+
+        Training first unions unique patterns across every qualifying year
+        combo, after restricting opportunity rows to the model tier.  The old
+        serving code counted every duration in one arbitrary combo instead.
+        That made the value depend on directory order and mixed the 10-30,
+        31-60, and 61-90 training populations.
+        """
+        active_pairs = set()
+        for lookup in combos.values():
+            for row_date, pair_days_out, direction in lookup:
+                if row_date == date_str:
+                    active_pairs.add((int(pair_days_out), direction))
+        return cls._context_concurrent_count(
+            {date_str: active_pairs}, int(days_out))
+
     def _compute_historical_observation(self, price_df, month, day, year,
                                         days_out, dir_char):
         """Recalculate one completed historical observation.
@@ -1568,22 +1586,12 @@ class FeatureEngine:
         else:
             features['pat_consistency_std'] = 0.0
 
-        # pat_concurrent_count: scan one representative combo, matching how
-        # build_training_data.py constructs date_pattern_counter for the tier.
-        # Taking the union across every combo (the previous behaviour) inflated
-        # this ~6x: measured live mean 283.8 / max 360 against a training range
-        # of mean 43.1 / max 238 (stable across all 26 training years, so this
-        # is a train/serve mismatch, not drift). Every live sample then sat
-        # beyond the training maximum, and XGBoost -- which extrapolates hardest
-        # outside its observed range -- collapsed to a NEGATIVE mean predicted
-        # return on tier 31_60, dragging that ensemble down ~36%.
-        _concurrent = 0
-        for _combo_lookup in combos.values():
-            for _key in _combo_lookup:
-                if _key[0] == date_str:
-                    _concurrent += 1
-            break
-        features['pat_concurrent_count'] = float(_concurrent)
+        # pat_concurrent_count: training counts the union of unique patterns
+        # across all qualifying combos, restricted to this model's tier.  Do
+        # the same here; using one arbitrary combo mixed all three tiers and
+        # still pushed live 31-60 values beyond the training maximum.
+        features['pat_concurrent_count'] = self._legacy_concurrent_count(
+            combos, date_str, daysOut)
 
         # Neighborhood features: use realized price history across prior years,
         # matching build_training_data.py:compute_neighborhood_features exactly.

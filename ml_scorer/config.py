@@ -214,10 +214,18 @@ try:
         sys.path.insert(0, parent_dir)
     from config_ml import TICKER_SECTOR, YEAR_COMBOS, PE_COMBOS, ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF
 except ImportError:
-    # Minimal fallback -- in production, config_ml.py should be available
-    TICKER_SECTOR = {}
-    ETF_SECTOR = {}
-    ETF_CATEGORY_SECTOR_ETF = {}
-    YEAR_COMBOS = [f"{y1}_{y2}" for y1 in range(5, 41)
-                   for y2 in range(int(0.8 * y1), y1 + 1)]
-    PE_COMBOS = [f"{y}_{y}_PE2" for y in range(4, 12)]
+    try:
+        # Immutable releases bundle config_ml.py beside this module.  The
+        # relative import keeps package-style consumers self-contained even
+        # when their working directory is outside the release directory.
+        from .config_ml import TICKER_SECTOR, YEAR_COMBOS, PE_COMBOS, ETF_SECTOR, ETF_CATEGORY_SECTOR_ETF
+    except ImportError:
+        # Minimal fallback for unsupported standalone use.  Deployment rejects
+        # candidates that reach this branch because model features would differ
+        # from training.
+        TICKER_SECTOR = {}
+        ETF_SECTOR = {}
+        ETF_CATEGORY_SECTOR_ETF = {}
+        YEAR_COMBOS = [f"{y1}_{y2}" for y1 in range(5, 41)
+                       for y2 in range(int(0.8 * y1), y1 + 1)]
+        PE_COMBOS = [f"{y}_{y}_PE2" for y in range(4, 12)]
