@@ -32,6 +32,7 @@ try:
         validate_context_opportunity,
     )
     from .metadata import model_manifest, service_metadata
+    from .live_vix import blocked_fields, gate_vix, live_vix
 except ImportError:
     from config import HOST, PORT, TIERS, MODEL_DIR, CALIBRATION_DIR, FEATURE_COLS, FEATURE_COLS_MFE, VIX_CUTOFF, CONTEXT_MAX_BATCH_ITEMS, CONTEXT_MAX_BATCH_IDENTITIES, PATTERN_PROFILE_SCHEMA_VERSION, tier_for_days_out
     from scorer import ScorerManager
@@ -42,6 +43,9 @@ except ImportError:
         validate_context_opportunity,
     )
     from metadata import model_manifest, service_metadata
+    from live_vix import blocked_fields, gate_vix, live_vix
+
+import pandas as pd
 
 # Logging
 logging.basicConfig(
@@ -82,6 +86,24 @@ def init_service():
         loaded_metadata['model_release'], loaded_metadata['model_manifest_hash'])
 
 
+def _vix_gate(features, date):
+    """VIX for the volatility gate: live quote for current dates, else that day's close."""
+    latest = close_date = None
+    try:
+        df = engine._get_price_df('VIX')
+        if df is not None and len(df):
+            latest = df.index.max()
+            sub = df[df.index <= pd.Timestamp(date)]
+            close_date = sub.index[-1] if len(sub) else None
+    except Exception:  # noqa: BLE001
+        log.info('VIX bar dates unavailable', exc_info=True)
+    return gate_vix(
+        features, date,
+        str(latest)[:10] if latest is not None else None,
+        str(close_date)[:10] if close_date is not None else None,
+    )
+
+
 # ---------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------
@@ -96,6 +118,8 @@ def health():
         'vix_cutoff': VIX_CUTOFF,
     }
     payload.update(service_metadata())
+    # The live VIX the gate uses for current dates (None when no recent quote).
+    payload['vix'] = live_vix()
     return jsonify(payload)
 
 
@@ -234,17 +258,19 @@ def score():
             # Compute features
             features = engine.compute_features(symbol, date, days_out, direction)
 
-            # Check VIX cutoff
-            vix = features.get('mkt_vix_level')
-            if vix is None or vix != vix:  # None or NaN (NaN != NaN is True)
+            # Check VIX cutoff (live VIX for current dates)
+            vix_info = _vix_gate(features, date)
+            if vix_info is None:
                 log.warning(f'VIX data unavailable for {symbol} {date} -- VIX block bypassed')
-            elif vix > VIX_CUTOFF:
-                results.append({
+            elif vix_info['value'] > VIX_CUTOFF:
+                blocked = {
                     'symbol': symbol, 'date': date, 'daysOut': days_out,
                     'direction': direction,
-                    'error': f'VIX={vix:.1f} exceeds cutoff ({VIX_CUTOFF})',
+                    'error': f"VIX={vix_info['value']:.2f} exceeds cutoff ({VIX_CUTOFF})",
                     'vix_blocked': True,
-                })
+                }
+                blocked.update(blocked_fields(vix_info, VIX_CUTOFF))
+                results.append(blocked)
                 continue
 
             # Score
@@ -406,17 +432,18 @@ def score_context():
 
             feature_vector_hash = _feature_vector_hash(features)
 
-            vix = features.get('mkt_vix_level')
-            if vix is not None and math.isfinite(float(vix)) and vix > VIX_CUTOFF:
+            vix_info = _vix_gate(features, item['date'])
+            if vix_info is not None and vix_info['value'] > VIX_CUTOFF:
                 blocked = dict(item)
                 blocked.update(error_payload(
                     'vix_blocked',
-                    f'VIX={vix:.1f} exceeds cutoff ({VIX_CUTOFF})',
+                    f"VIX={vix_info['value']:.2f} exceeds cutoff ({VIX_CUTOFF})",
                     # Stable for this data-as-of.  A retry against the same
                     # context cannot change the hurricane-filter decision.
                     retryable=False,
                 ))
                 blocked['vix_blocked'] = True
+                blocked['error'].update(blocked_fields(vix_info, VIX_CUTOFF))
                 results.append(blocked)
                 continue
 

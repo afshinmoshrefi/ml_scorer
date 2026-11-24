@@ -134,11 +134,18 @@ def score_candidates(candidates, engine, scorer_mgr, date):
         try:
             features = engine.compute_features(symbol, date, days_out, direction)
 
-            # VIX check
-            vix = features.get('mkt_vix_level')
+            # VIX check: the same live-VIX gate as /score (live quote for today)
+            try:
+                from .live_vix import live_vix
+                from .config import VIX_CUTOFF
+            except ImportError:
+                from live_vix import live_vix
+                from config import VIX_CUTOFF
+            live = live_vix()
+            vix = live['value'] if live else features.get('mkt_vix_level')
             if vix is None or vix != vix:  # None or NaN (NaN != NaN is True)
                 log.warning(f'VIX data unavailable for {symbol} -- VIX block bypassed')
-            elif vix > 35:
+            elif vix > VIX_CUTOFF:
                 continue
 
             scores = tier.predict(features)
